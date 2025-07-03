@@ -1,0 +1,22 @@
+[flake8]
+max-line-length = 120
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    .env,
+    build,
+    dist,
+    *.egg-info,
+    obj,
+    lib
+ignore = 
+    E203,  # whitespace before ':'
+    W503,  # line break before binary operator
+    F401,  # imported but unused (for __init__.py files)
+    F403,  # wildcard import
+    E722   # do not use bare except
+per-file-ignores =
+    __init__.py:F401 
