@@ -71,17 +71,11 @@ static bool vesc_can_send_packet(uint32_t id, uint8_t *data, uint8_t len) {
 /**
  * Send buffer using VESC packet fragmentation protocol
  */
-static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len, uint8_t send) {
+static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len) {
     if (len <= 6) {
         // Short packet - send directly
-        uint8_t buffer[8];
-        int32_t index = 0;
-        buffer[index++] = send;
-        memcpy(buffer + index, data, len);
-        index += len;
-        
         uint32_t can_id = controller_id | ((uint32_t)CAN_PACKET_PROCESS_SHORT_BUFFER << 8);
-        vesc_can_send_packet(can_id, buffer, index);
+        vesc_can_send_packet(can_id, data, len);
     } else {
         // Long packet - fragment
         uint8_t send_buffer[8];
@@ -128,7 +122,6 @@ static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len,
         // Send process command
         int32_t index = 0;
         send_buffer[index++] = sdk_state.controller_id;
-        send_buffer[index++] = send;
         send_buffer[index++] = len >> 8;
         send_buffer[index++] = len & 0xFF;
         uint16_t crc = vesc_crc16(data, len);
@@ -236,6 +229,29 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
     }
 }
 
+/**
+ * Send command with CRC and stop byte
+ */
+static void vesc_send_command(uint8_t controller_id, uint8_t *data, uint32_t len) {
+    uint8_t buffer[256]; // Adjust size as needed
+    int32_t index = 0;
+
+    // Copy data into buffer
+    memcpy(buffer, data, len);
+    index += len;
+
+    // Calculate CRC for the payload
+    uint16_t crc = vesc_crc16(data, len);
+    buffer[index++] = (uint8_t)(crc >> 8);
+    buffer[index++] = (uint8_t)(crc & 0xFF);
+
+    // Append stop byte (char 3)
+    buffer[index++] = 3;
+
+    // Use vesc_send_buffer for actual sending
+    vesc_send_buffer(controller_id, buffer, index);
+}
+
 // ============================================================================
 // Public API Implementation
 // ============================================================================
@@ -329,7 +345,9 @@ void vesc_set_handbrake(uint8_t controller_id, float current) {
 void vesc_detect_motor_r_l(uint8_t controller_id) {
     uint8_t buffer[1];
     buffer[0] = COMM_DETECT_MOTOR_R_L;
-    vesc_send_buffer(controller_id, buffer, 1, 2);
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, 1);
 }
 
 void vesc_detect_motor_param(uint8_t controller_id, float current, float min_rpm, float low_duty) {
@@ -339,7 +357,9 @@ void vesc_detect_motor_param(uint8_t controller_id, float current, float min_rpm
     vesc_buffer_append_float32(buffer, current, 1e3f, &index);
     vesc_buffer_append_float32(buffer, min_rpm, 1e3f, &index);
     vesc_buffer_append_float32(buffer, low_duty, 1e3f, &index);
-    vesc_send_buffer(controller_id, buffer, index, 2);
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, index);
 }
 
 void vesc_detect_motor_flux_linkage(uint8_t controller_id, float current, float min_rpm, float duty, float resistance) {
@@ -350,7 +370,9 @@ void vesc_detect_motor_flux_linkage(uint8_t controller_id, float current, float 
     vesc_buffer_append_float32(buffer, min_rpm, 1e3f, &index);
     vesc_buffer_append_float32(buffer, duty, 1e3f, &index);
     vesc_buffer_append_float32(buffer, resistance, 1e6f, &index);
-    vesc_send_buffer(controller_id, buffer, index, 2);
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, index);
 }
 
 // ============================================================================
@@ -391,25 +413,33 @@ void vesc_set_chuck_data(uint8_t controller_id, vesc_chuck_data_t *data) {
 void vesc_get_values(uint8_t controller_id) {
     uint8_t buffer[1];
     buffer[0] = COMM_GET_VALUES;
-    vesc_send_buffer(controller_id, buffer, 1, 2);
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, 1);
 }
 
 void vesc_get_decoded_adc(uint8_t controller_id) {
     uint8_t buffer[1];
     buffer[0] = COMM_GET_DECODED_ADC;
-    vesc_send_buffer(controller_id, buffer, 1, 2);
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, 1);
 }
 
 void vesc_get_decoded_ppm(uint8_t controller_id) {
     uint8_t buffer[1];
     buffer[0] = COMM_GET_DECODED_PPM;
-    vesc_send_buffer(controller_id, buffer, 1, 2);
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, 1);
 }
 
 void vesc_get_fw_version(uint8_t controller_id) {
     uint8_t buffer[1];
     buffer[0] = COMM_FW_VERSION;
-    vesc_send_buffer(controller_id, buffer, 1, 2);
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, 1);
 }
 
 // ============================================================================
@@ -639,4 +669,4 @@ bool vesc_parse_status_msg_6(uint8_t *data, uint8_t len, vesc_status_msg_6_t *st
     status->valid = true;
     
     return true;
-} 
+}
