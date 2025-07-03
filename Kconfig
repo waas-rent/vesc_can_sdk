@@ -1,0 +1,14 @@
+# Copyright (c) 2025 waas AG
+# All rights reserved.
+
+config VESC_CAN_SDK
+    bool "VESC CAN SDK"
+    default y
+    help
+    	Enable VESC CAN 
+
+# Logging subsystem configuration:
+module = VESC_CAN_SDK
+module-str = vesc-can-sdk
+source "subsys/logging/Kconfig.template.log_config"
+

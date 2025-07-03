@@ -1,0 +1,12 @@
+# Copyright (c) 2025 waas AG
+# All rights reserved.
+
+build:
+  # Path to the folder that contains the CMakeLists.txt file to be included by
+  # Zephyr build system. Path is relative from root of this git repository.
+  cmake: .
+
+  # Path to the Kconfig file that will be sourced into Zephyr Kconfig tree under
+  # Zephyr > Modules. Path is relative from root of this git repository.
+  kconfig: Kconfig
+
