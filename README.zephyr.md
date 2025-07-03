@@ -22,7 +22,7 @@ The VESC CAN SDK is a pure C library for communicating with VESC motor controlle
 ## Building the SDK as a Zephyr Library
 
 1. **Add the SDK to your Zephyr project**
-   - Copy the `vesc_can_sdk` directory into your Zephyr application's source tree, or add it as a module/submodule.
+   - Copy the `vesc_can_sdk` directory into your Zephyr application's source tree.
 
 2. **Include the SDK in your application's CMakeLists.txt**
    - In your application's `CMakeLists.txt`, add:

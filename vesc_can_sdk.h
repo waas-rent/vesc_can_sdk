@@ -297,7 +297,7 @@ void vesc_set_handbrake(uint8_t controller_id, float current);
 // ============================================================================
 
 /**
- * Detect motor resistance and inductance
+ * Detect motor resistance and inductance. This will make the motor make weird noises but these are expected.
  * 
  * @param controller_id VESC controller ID (0-255)
  */
@@ -314,7 +314,7 @@ void vesc_detect_motor_r_l(uint8_t controller_id);
 void vesc_detect_motor_param(uint8_t controller_id, float current, float min_rpm, float low_duty);
 
 /**
- * Detect motor flux linkage
+ * Detect motor flux linkage. ATTENTION: This command will move the motor!
  * 
  * @param controller_id VESC controller ID (0-255)
  * @param current Detection current in Amperes
