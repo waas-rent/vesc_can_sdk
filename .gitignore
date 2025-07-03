@@ -86,3 +86,7 @@ node_modules/
 # Backup files
 *.backup
 *.old 
+
+output/
+scripts/last_checked_commit.txt
+scripts/venv
