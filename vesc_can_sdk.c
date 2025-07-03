@@ -140,17 +140,7 @@ static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len,
     }
 }
 
-/**
- * Find free RX buffer
- */
-static int vesc_find_free_rx_buffer(void) {
-    for (int i = 0; i < VESC_RX_BUFFER_NUM; i++) {
-        if (!sdk_state.rx_buffers[i].active) {
-            return i;
-        }
-    }
-    return -1;
-}
+
 
 /**
  * Process received CAN frame
@@ -202,7 +192,6 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
         
         case CAN_PACKET_PROCESS_RX_BUFFER: {
             if (len < 6) return;
-            uint8_t send_id = data[0];
             uint8_t send = data[1];
             uint16_t length = (data[2] << 8) | data[3];
             uint16_t crc_rx = (data[4] << 8) | data[5];

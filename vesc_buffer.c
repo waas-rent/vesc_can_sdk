@@ -23,6 +23,7 @@
  */
 
 #include "vesc_buffer.h"
+#include <stdbool.h>
 #include <math.h>
 #include <string.h>
 

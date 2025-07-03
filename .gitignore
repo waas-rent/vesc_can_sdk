@@ -1,0 +1,88 @@
+# Build artifacts
+obj/
+build/
+out/
+dist/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.app
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+!*.cmake.in
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.bak
+*.orig
+
+# Python cache (for python/ directory)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Documentation build
+docs/_build/
+docs/build/
+
+# Test coverage
+*.gcov
+*.gcda
+*.gcno
+coverage/
+*.info
+
+# Package files
+*.tar.gz
+*.zip
+*.deb
+*.rpm
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Profiling files
+*.prof
+*.gprof
+
+# Valgrind output
+valgrind-out.txt
+
+# Dependencies (if using package managers)
+vendor/
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Backup files
+*.backup
+*.old 
