@@ -262,6 +262,89 @@ vesc_get_values(1);
 
 This approach allows you to communicate with multiple VESC controllers sequentially while ensuring that only responses from the intended controller are processed.
 
+### Status Message Parsing Example
+
+VESC controllers automatically send status messages when status reporting is enabled. Here's how to parse Status Message 1 (CAN_PACKET_STATUS) which contains RPM, current, and duty cycle information:
+
+```c
+// Response callback function with status message parsing
+static void vesc_response_callback(uint8_t controller_id, uint8_t command, uint8_t *data, uint8_t len) {
+    printf("Received response from VESC %d, command: %d, length: %d\n", 
+           controller_id, command, len);
+    
+    // Handle firmware version response
+    if (command == COMM_FW_VERSION) {
+        vesc_fw_version_t version;
+        if (vesc_parse_fw_version(data, len, &version)) {
+            printf("VESC Firmware Version: %d.%d\n", version.major, version.minor);
+            printf("Hardware: %s\n", version.hw_name);
+        }
+    }
+    
+    // Handle Status Message 1 (RPM, Current, Duty Cycle)
+    else if (command == CAN_PACKET_STATUS) {
+        vesc_status_msg_1_t status;
+        if (vesc_parse_status_msg_1(data, len, &status)) {
+            printf("VESC %d Status 1:\n", controller_id);
+            printf("  RPM: %.0f\n", status.rpm);
+            printf("  Current: %.2f A\n", status.current);
+            printf("  Duty Cycle: %.1f%%\n", status.duty * 100.0f);
+            
+            // Example: Check if motor is running
+            if (status.rpm > 0) {
+                printf("  Motor Status: Running\n");
+            } else {
+                printf("  Motor Status: Stopped\n");
+            }
+            
+            // Example: Check current limits
+            if (status.current > 20.0f) {
+                printf("  WARNING: High current detected!\n");
+            }
+        } else {
+            printf("Failed to parse Status Message 1\n");
+        }
+    }
+    
+    // Handle other status messages
+    else if (command == CAN_PACKET_STATUS_4) {
+        vesc_status_msg_4_t status;
+        if (vesc_parse_status_msg_4(data, len, &status)) {
+            printf("VESC %d Status 4:\n", controller_id);
+            printf("  FET Temperature: %.1f°C\n", status.temp_fet);
+            printf("  Motor Temperature: %.1f°C\n", status.temp_motor);
+            printf("  Input Current: %.2f A\n", status.current_in);
+            printf("  PID Position: %.2f\n", status.pid_pos_now);
+            
+            // Example: Temperature monitoring
+            if (status.temp_fet > 80.0f) {
+                printf("  WARNING: High FET temperature!\n");
+            }
+            if (status.temp_motor > 100.0f) {
+                printf("  WARNING: High motor temperature!\n");
+            }
+        }
+    }
+}
+```
+
+### Status Message Types
+
+The VESC SDK supports parsing all 6 status message types:
+
+- **Status Message 1** (`CAN_PACKET_STATUS`): RPM, current, duty cycle
+- **Status Message 2** (`CAN_PACKET_STATUS_2`): Amp hours consumed and charged
+- **Status Message 3** (`CAN_PACKET_STATUS_3`): Watt hours consumed and charged
+- **Status Message 4** (`CAN_PACKET_STATUS_4`): Temperatures, input current, PID position
+- **Status Message 5** (`CAN_PACKET_STATUS_5`): Tachometer value, input voltage
+- **Status Message 6** (`CAN_PACKET_STATUS_6`): ADC values, PPM value
+
+### Enabling Status Messages
+
+To receive status messages from VESC controllers, you need to enable status reporting in the VESC configuration. This is typically done through the VESC Tool or by sending configuration commands.
+
+**Note:** Status messages are automatically sent by VESC controllers when enabled - you don't need to request them explicitly like other commands.
+
 ## Notes
 
 - You may need to adapt the CAN send/receive functions to your board/application.
