@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+includedir=${prefix}/include
+libdir=${prefix}/lib
+
+Name: vesc_can_sdk
+Description: VESC CAN SDK - A pure C SDK for communicating with VESC motor controllers over CAN
+Version: @PROJECT_VERSION@
+Cflags: -I${includedir}
+Libs: -L${libdir} -lvesc_can_sdk -lm
+Requires: 
