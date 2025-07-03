@@ -22,20 +22,37 @@ The VESC CAN SDK is a pure C library for communicating with VESC motor controlle
 ## Building the SDK as a Zephyr Library
 
 1. **Add the SDK to your Zephyr project**
-   - Copy the `vesc_can_sdk` directory into your Zephyr application's source tree.
+   - Add this module to your west.yml manifest file. 
+     ````
+     manifest:
+      self:
+         path: myproject
 
-2. **Include the SDK in your application's CMakeLists.txt**
-   - In your application's `CMakeLists.txt`, add:
-     ```cmake
-     add_subdirectory(vesc_can_sdk)
-     ```
-   - This will build the SDK as a static library named `vesc_can_sdk`.
+      remotes:
+         - name: zephyrproject-upstream
+            url-base: https://github.com/zephyrproject-rtos
+         - name: vesc_can_sdk
+            url-base: https://github.com/waas-rent
 
-3. **Link the library to your application**
-   - In your application's CMake target, link against the SDK:
-     ```cmake
-     target_link_libraries(your_app PRIVATE vesc_can_sdk)
+      projects:
+         - name: zephyr
+            remote: zephyrproject-upstream
+            revision: v4.0.0
+            import: false
+            path: zephyr
+            west-commands: scripts/west-commands.yml
+            import:
+            name-allowlist:
+               - ...
+               - vesc_can_sdk
+         
+         - name: vesc_can_sdk
+            remote: vesc_can_sdk
+            revision: main
+            path: modules/lib/vesc_can_sdk
      ```
+
+3. **Run `west update` to retrieve the module**
 
 4. **Include the SDK headers in your code**
    - In your source files, include the main SDK header:
@@ -43,27 +60,161 @@ The VESC CAN SDK is a pure C library for communicating with VESC motor controlle
      #include <vesc_can_sdk.h>
      ```
 
-## Zephyr-Specific Configuration
-
-- The file `vesc_can_sdk_zephyr_config.h` is generated automatically during the build and provides Zephyr-specific macros and type definitions.
-- The SDK uses Zephyr's CAN, memory, threading, and logging APIs for integration.
-
 ## Example Usage
 
+### Basic Initialization and Version Request
+
+Here's a complete example showing how to initialize the VESC CAN SDK and request the firmware version from a VESC device:
+
 ```c
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/can.h>
 #include <vesc_can_sdk.h>
+#include <stdio.h>
+
+// CAN device
+static const struct device *can_dev;
+
+// VESC controller ID (typically 0 for single VESC, or 1-255 for multiple VESCs)
+#define VESC_CONTROLLER_ID 0
+
+// Response callback function
+static void vesc_response_callback(uint8_t controller_id, uint8_t command, uint8_t *data, uint8_t len) {
+    printf("Received response from VESC %d, command: %d, length: %d\n", 
+           controller_id, command, len);
+    
+    // Handle firmware version response
+    if (command == COMM_FW_VERSION) {
+        vesc_fw_version_t version;
+        if (vesc_parse_fw_version(data, len, &version)) {
+            printf("VESC Firmware Version: %d.%d\n", version.major, version.minor);
+            printf("Hardware: %s\n", version.hw_name);
+            printf("Hardware Type: %d\n", version.hw_type);
+            printf("Configuration: %d\n", version.cfg_num);
+            printf("UUID: ");
+            for (int i = 0; i < 12; i++) {
+                printf("%02X", version.uuid[i]);
+            }
+            printf("\n");
+        } else {
+            printf("Failed to parse firmware version response\n");
+        }
+    }
+}
+
+// CAN send function for VESC SDK
+static bool vesc_can_send(uint32_t id, uint8_t *data, uint8_t len) {
+    struct can_frame frame;
+    
+    frame.id = id;
+    frame.dlc = len;
+    frame.flags = CAN_FRAME_ID_EXT; // VESC uses extended CAN IDs
+    
+    memcpy(frame.data, data, len);
+    
+    int ret = can_send(can_dev, &frame, K_MSEC(100), NULL, NULL);
+    if (ret != 0) {
+        printf("Failed to send CAN frame: %d\n", ret);
+        return false;
+    }
+    
+    return true;
+}
+
+// CAN receive thread
+static void can_receive_thread(void) {
+    struct can_frame frame;
+    
+    while (1) {
+        int ret = can_read(can_dev, &frame, K_FOREVER, NULL);
+        if (ret == 0) {
+            // Process received CAN frame with VESC SDK
+            vesc_process_can_frame(frame.id, frame.data, frame.dlc);
+        }
+    }
+}
 
 void main(void) {
-    // Initialize CAN and VESC SDK as needed
-    // Use SDK functions to communicate with VESC devices
+    printf("VESC CAN SDK Example\n");
+    
+    // Get CAN device
+    can_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_canbus));
+    if (!device_is_ready(can_dev)) {
+        printf("CAN device not ready\n");
+        return;
+    }
+    
+    // Initialize VESC CAN SDK
+    if (!vesc_can_init(vesc_can_send)) {
+        printf("Failed to initialize VESC CAN SDK\n");
+        return;
+    }
+    
+    // Set response callback
+    vesc_set_response_callback(vesc_response_callback);
+    
+    printf("VESC CAN SDK initialized successfully\n");
+    
+    // Start CAN receive thread
+    k_thread_create(&can_thread, can_thread_stack,
+                   K_THREAD_STACK_SIZEOF(can_thread_stack),
+                   (k_thread_entry_t)can_receive_thread,
+                   NULL, NULL, NULL,
+                   K_PRIO_COOP(7), 0, K_NO_WAIT);
+    k_thread_name_set(&can_thread, "can_receive");
+    
+    // Wait a moment for system to stabilize
+    k_sleep(K_MSEC(1000));
+    
+    // Request VESC firmware version
+    printf("Requesting VESC firmware version...\n");
+    vesc_get_fw_version(VESC_CONTROLLER_ID);
+    
+    // Keep the main thread alive
+    while (1) {
+        k_sleep(K_MSEC(1000));
+    }
 }
+
+// Thread definitions
+K_THREAD_DEFINE(can_thread, 1024, can_receive_thread, NULL, NULL, NULL, 7, 0, 0);
+```
+
+### Key Components Explained
+
+1. **CAN Send Function**: The `vesc_can_send` function is passed to the SDK during initialization. It handles the actual transmission of CAN frames using Zephyr's CAN driver.
+
+2. **Response Callback**: The `vesc_response_callback` function is called by the SDK when responses are received from VESC devices. It handles parsing and processing of different response types.
+
+3. **CAN Receive Thread**: A dedicated thread continuously reads CAN frames and passes them to the SDK for processing.
+
+4. **Version Request**: The `vesc_get_fw_version()` function sends a firmware version request to the specified VESC controller.
+
+### Additional Commands
+
+You can also send other commands to VESC devices:
+
+```c
+// Get motor values (current, voltage, RPM, etc.)
+vesc_get_values(VESC_CONTROLLER_ID);
+
+// Set motor duty cycle (0.0 to 1.0)
+vesc_set_duty(VESC_CONTROLLER_ID, 0.5f);
+
+// Set motor current (in Amperes)
+vesc_set_current(VESC_CONTROLLER_ID, 10.0f);
+
+// Set motor RPM
+vesc_set_rpm(VESC_CONTROLLER_ID, 1000.0f);
 ```
 
 ## Notes
 
-- Ensure your Zephyr project is configured with CAN support enabled.
-- The SDK expects Zephyr's CAN API to be available (`<zephyr/canbus/can.h>`).
 - You may need to adapt the CAN send/receive functions to your board/application.
+- The VESC controller ID should match the ID configured in your VESC device.
+- Extended CAN IDs are used by VESC (29-bit IDs).
+- The SDK handles packet fragmentation automatically for long commands.
 
 ## License
 
