@@ -455,6 +455,12 @@ This SDK is released under the MIT License. See LICENSE file for details.
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
 
+## Internal Knowledge
+
+### Packets vs Commands
+
+In the context of VESC communication, there is a distinction between sending packets and commands. Packets are the raw data structures transmitted over the CAN bus, while commands are higher-level abstractions that represent specific actions or queries. This SDK supports both packets and commands seamlessly, abstracting away the differences so users can focus on their application logic without worrying about the underlying details.
+
 ## Status Message Parsing Functions
 
 These functions parse VESC CAN status messages that are automatically sent by VESC controllers.
@@ -512,4 +518,4 @@ Parse firmware version response.
 - `data`: Response data
 - `len`: Data length
 - `version`: Pointer to firmware version structure
-- **Returns**: `true` on success, `false` on failure 
+- **Returns**: `true` on success, `false` on failure
