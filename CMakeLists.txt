@@ -26,78 +26,12 @@
 # Set minimum CMake version
 cmake_minimum_required(VERSION 3.20.0)
 
-# Find Zephyr package
-find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-
-# Set C standard for Zephyr compatibility
-set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-
-# Define the library name
-set(LIBRARY_NAME vesc_can_sdk)
-
-# Source files for the VESC CAN SDK
-set(SOURCES
+zephyr_sources_ifdef(CONFIG_VESC_CAN_SDK
+    vesc_can_sdk.c
     vesc_buffer.c
     vesc_crc.c
-    vesc_can_sdk.c
 )
 
-# Header files
-set(HEADERS
-    vesc_buffer.h
-    vesc_crc.h
-    vesc_can_sdk.h
+zephyr_include_directories_ifdef(CONFIG_VESC_CAN_SDK
+    include
 )
-
-# Create static library
-add_library(${LIBRARY_NAME} STATIC ${SOURCES})
-
-# Set library properties
-set_target_properties(${LIBRARY_NAME} PROPERTIES
-    OUTPUT_NAME ${LIBRARY_NAME}
-    POSITION_INDEPENDENT_CODE OFF  # Not needed for embedded systems
-)
-
-# Set include directories
-target_include_directories(${LIBRARY_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-# Link with Zephyr libraries
-target_link_libraries(${LIBRARY_NAME} zephyr)
-
-# Set compiler flags for embedded systems
-target_compile_options(${LIBRARY_NAME} PRIVATE
-    -Wall
-    -Wextra
-    -Wno-unused-parameter
-    -Wno-unused-variable
-    -Wno-unused-function
-)
-
-# Define preprocessor macros for Zephyr compatibility
-target_compile_definitions(${LIBRARY_NAME} PRIVATE
-    VESC_CAN_SDK_ZEPHYR=1
-)
-
-# Install headers to Zephyr include directory
-install(FILES ${HEADERS} DESTINATION include/${LIBRARY_NAME})
-
-# Create a config header for Zephyr-specific configurations
-configure_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/vesc_can_sdk_zephyr_config.h.in
-    ${CMAKE_CURRENT_BINARY_DIR}/vesc_can_sdk_zephyr_config.h
-    @ONLY
-)
-
-# Install the config header
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/vesc_can_sdk_zephyr_config.h
-    DESTINATION include/${LIBRARY_NAME}
-)
-
-# Print configuration summary
-message(STATUS "VESC CAN SDK for Zephyr Configuration:")
-message(STATUS "  Library name: ${LIBRARY_NAME}")
-message(STATUS "  Source files: ${SOURCES}")
-message(STATUS "  Header files: ${HEADERS}")
-message(STATUS "  C standard: ${CMAKE_C_STANDARD}")
-message(STATUS "  Zephyr base: $ENV{ZEPHYR_BASE}") 

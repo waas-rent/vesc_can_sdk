@@ -30,7 +30,7 @@ ARFLAGS = rcs
 SRCDIR = .
 OBJDIR = obj
 LIBDIR = lib
-INCDIR = .
+INCDIR = include
 
 # Source files
 SOURCES = $(wildcard $(SRCDIR)/*.c)
@@ -76,7 +76,7 @@ install: all
 	@mkdir -p /usr/local/include
 	@cp $(LIBDIR)/$(LIBRARY) /usr/local/lib/
 	@cp $(LIBDIR)/$(SHARED_LIBRARY) /usr/local/lib/
-	@cp *.h /usr/local/include/
+	@cp $(INCDIR)/*.h /usr/local/include/
 	@ldconfig
 
 # Uninstall

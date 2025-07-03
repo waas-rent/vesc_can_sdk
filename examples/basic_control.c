@@ -29,7 +29,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include "../vesc_can_sdk.h"
+#include "../include/vesc_can_sdk.h"
 
 // Global variables for cleanup
 static bool running = true;

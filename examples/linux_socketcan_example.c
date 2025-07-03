@@ -36,7 +36,7 @@
 #include <linux/can/raw.h>
 #include <errno.h>
 #include <pthread.h>
-#include "../vesc_can_sdk.h"
+#include "../include/vesc_can_sdk.h"
 
 // Global variables
 static bool running = true;
