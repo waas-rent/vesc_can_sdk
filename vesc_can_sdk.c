@@ -552,4 +552,91 @@ bool vesc_parse_fw_version(uint8_t *data, uint8_t len, vesc_fw_version_t *versio
     version->valid = true;
     
     return true;
+}
+
+// ============================================================================
+// Status Message Parsing Functions
+// ============================================================================
+
+bool vesc_parse_status_msg_1(uint8_t *data, uint8_t len, vesc_status_msg_1_t *status) {
+    if (!data || !status || len < 8) {
+        return false;
+    }
+    
+    int32_t index = 0;
+    status->rpm = (float)vesc_buffer_get_int32(data, &index);
+    status->current = (float)vesc_buffer_get_int16(data, &index) / 10.0f;
+    status->duty = (float)vesc_buffer_get_int16(data, &index) / 1000.0f;
+    status->valid = true;
+    
+    return true;
+}
+
+bool vesc_parse_status_msg_2(uint8_t *data, uint8_t len, vesc_status_msg_2_t *status) {
+    if (!data || !status || len < 8) {
+        return false;
+    }
+    
+    int32_t index = 0;
+    status->amp_hours = (float)vesc_buffer_get_int32(data, &index) / 1e4f;
+    status->amp_hours_charged = (float)vesc_buffer_get_int32(data, &index) / 1e4f;
+    status->valid = true;
+    
+    return true;
+}
+
+bool vesc_parse_status_msg_3(uint8_t *data, uint8_t len, vesc_status_msg_3_t *status) {
+    if (!data || !status || len < 8) {
+        return false;
+    }
+    
+    int32_t index = 0;
+    status->watt_hours = (float)vesc_buffer_get_int32(data, &index) / 1e4f;
+    status->watt_hours_charged = (float)vesc_buffer_get_int32(data, &index) / 1e4f;
+    status->valid = true;
+    
+    return true;
+}
+
+bool vesc_parse_status_msg_4(uint8_t *data, uint8_t len, vesc_status_msg_4_t *status) {
+    if (!data || !status || len < 8) {
+        return false;
+    }
+    
+    int32_t index = 0;
+    status->temp_fet = (float)vesc_buffer_get_int16(data, &index) / 10.0f;
+    status->temp_motor = (float)vesc_buffer_get_int16(data, &index) / 10.0f;
+    status->current_in = (float)vesc_buffer_get_int16(data, &index) / 10.0f;
+    status->pid_pos_now = (float)vesc_buffer_get_int16(data, &index) / 50.0f;
+    status->valid = true;
+    
+    return true;
+}
+
+bool vesc_parse_status_msg_5(uint8_t *data, uint8_t len, vesc_status_msg_5_t *status) {
+    if (!data || !status || len < 8) {
+        return false;
+    }
+    
+    int32_t index = 0;
+    status->tacho_value = vesc_buffer_get_int32(data, &index);
+    status->v_in = (float)vesc_buffer_get_int16(data, &index) / 10.0f;
+    status->valid = true;
+    
+    return true;
+}
+
+bool vesc_parse_status_msg_6(uint8_t *data, uint8_t len, vesc_status_msg_6_t *status) {
+    if (!data || !status || len < 8) {
+        return false;
+    }
+    
+    int32_t index = 0;
+    status->adc_1 = vesc_buffer_get_float16(data, 1e3f, &index);
+    status->adc_2 = vesc_buffer_get_float16(data, 1e3f, &index);
+    status->adc_3 = vesc_buffer_get_float16(data, 1e3f, &index);
+    status->ppm = vesc_buffer_get_float16(data, 1e3f, &index);
+    status->valid = true;
+    
+    return true;
 } 

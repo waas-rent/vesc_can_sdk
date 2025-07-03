@@ -133,6 +133,65 @@ void response_callback(uint8_t controller_id, uint8_t command, uint8_t *data, ui
                 printf("    Pulse Length: %.1f μs\n", ppm.pulse_len);
             }
         } break;
+        
+        case CAN_PACKET_STATUS: {
+            vesc_status_msg_1_t status;
+            if (vesc_parse_status_msg_1(data, len, &status)) {
+                printf("  Status Message 1:\n");
+                printf("    RPM: %.0f\n", status.rpm);
+                printf("    Current: %.2fA\n", status.current);
+                printf("    Duty Cycle: %.1f%%\n", status.duty * 100.0f);
+            }
+        } break;
+        
+        case CAN_PACKET_STATUS_2: {
+            vesc_status_msg_2_t status;
+            if (vesc_parse_status_msg_2(data, len, &status)) {
+                printf("  Status Message 2:\n");
+                printf("    Amp Hours: %.2fAh\n", status.amp_hours);
+                printf("    Amp Hours Charged: %.2fAh\n", status.amp_hours_charged);
+            }
+        } break;
+        
+        case CAN_PACKET_STATUS_3: {
+            vesc_status_msg_3_t status;
+            if (vesc_parse_status_msg_3(data, len, &status)) {
+                printf("  Status Message 3:\n");
+                printf("    Watt Hours: %.2fWh\n", status.watt_hours);
+                printf("    Watt Hours Charged: %.2fWh\n", status.watt_hours_charged);
+            }
+        } break;
+        
+        case CAN_PACKET_STATUS_4: {
+            vesc_status_msg_4_t status;
+            if (vesc_parse_status_msg_4(data, len, &status)) {
+                printf("  Status Message 4:\n");
+                printf("    FET Temperature: %.1f°C\n", status.temp_fet);
+                printf("    Motor Temperature: %.1f°C\n", status.temp_motor);
+                printf("    Input Current: %.2fA\n", status.current_in);
+                printf("    PID Position: %.2f\n", status.pid_pos_now);
+            }
+        } break;
+        
+        case CAN_PACKET_STATUS_5: {
+            vesc_status_msg_5_t status;
+            if (vesc_parse_status_msg_5(data, len, &status)) {
+                printf("  Status Message 5:\n");
+                printf("    Tachometer: %d\n", status.tacho_value);
+                printf("    Input Voltage: %.1fV\n", status.v_in);
+            }
+        } break;
+        
+        case CAN_PACKET_STATUS_6: {
+            vesc_status_msg_6_t status;
+            if (vesc_parse_status_msg_6(data, len, &status)) {
+                printf("  Status Message 6:\n");
+                printf("    ADC1: %.3f\n", status.adc_1);
+                printf("    ADC2: %.3f\n", status.adc_2);
+                printf("    ADC3: %.3f\n", status.adc_3);
+                printf("    PPM: %.3f\n", status.ppm);
+            }
+        } break;
     }
 }
 

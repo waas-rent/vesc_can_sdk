@@ -86,6 +86,12 @@ extern "C" {
 #define CAN_PACKET_FILL_RX_BUFFER_LONG 6
 #define CAN_PACKET_PROCESS_RX_BUFFER 7
 #define CAN_PACKET_PROCESS_SHORT_BUFFER 8
+#define CAN_PACKET_STATUS          9
+#define CAN_PACKET_STATUS_2        14
+#define CAN_PACKET_STATUS_3        15
+#define CAN_PACKET_STATUS_4        16
+#define CAN_PACKET_STATUS_5        27
+#define CAN_PACKET_STATUS_6        58
 #define CAN_PACKET_PING            28
 #define CAN_PACKET_PONG            29
 #define CAN_PACKET_DETECT_APPLY_ALL_FOC 30
@@ -209,6 +215,57 @@ typedef struct {
     bool rev_has_state;       // Reverse has state
     bool is_rev;              // Is reverse
 } vesc_chuck_data_t;
+
+// ============================================================================
+// Status Message Response Structures
+// ============================================================================
+
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    float rpm;                // Motor RPM
+    float current;            // Motor current (A)
+    float duty;               // Duty cycle (0.0-1.0)
+    bool valid;               // Response validity
+} vesc_status_msg_1_t;
+
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    float amp_hours;          // Consumed amp hours (Ah)
+    float amp_hours_charged;  // Charged amp hours (Ah)
+    bool valid;               // Response validity
+} vesc_status_msg_2_t;
+
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    float watt_hours;         // Consumed watt hours (Wh)
+    float watt_hours_charged; // Charged watt hours (Wh)
+    bool valid;               // Response validity
+} vesc_status_msg_3_t;
+
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    float temp_fet;           // FET temperature (°C)
+    float temp_motor;         // Motor temperature (°C)
+    float current_in;         // Input current (A)
+    float pid_pos_now;        // Current PID position
+    bool valid;               // Response validity
+} vesc_status_msg_4_t;
+
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    int32_t tacho_value;      // Tachometer value
+    float v_in;               // Input voltage (V)
+    bool valid;               // Response validity
+} vesc_status_msg_5_t;
+
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    float adc_1;              // ADC1 value (0.0-1.0)
+    float adc_2;              // ADC2 value (0.0-1.0)
+    float adc_3;              // ADC3 value (0.0-1.0)
+    float ppm;                // PPM value (0.0-1.0)
+    bool valid;               // Response validity
+} vesc_status_msg_6_t;
 
 // ============================================================================
 // Function Types
@@ -457,6 +514,70 @@ bool vesc_parse_ppm_values(uint8_t *data, uint8_t len, vesc_ppm_values_t *values
  * @return true on success, false on failure
  */
 bool vesc_parse_fw_version(uint8_t *data, uint8_t len, vesc_fw_version_t *version);
+
+// ============================================================================
+// Status Message Parsing Functions
+// ============================================================================
+
+/**
+ * Parse CAN_PACKET_STATUS (Status Message 1) response
+ * 
+ * @param data Response data
+ * @param len Data length
+ * @param status Pointer to status message 1 structure
+ * @return true on success, false on failure
+ */
+bool vesc_parse_status_msg_1(uint8_t *data, uint8_t len, vesc_status_msg_1_t *status);
+
+/**
+ * Parse CAN_PACKET_STATUS_2 (Status Message 2) response
+ * 
+ * @param data Response data
+ * @param len Data length
+ * @param status Pointer to status message 2 structure
+ * @return true on success, false on failure
+ */
+bool vesc_parse_status_msg_2(uint8_t *data, uint8_t len, vesc_status_msg_2_t *status);
+
+/**
+ * Parse CAN_PACKET_STATUS_3 (Status Message 3) response
+ * 
+ * @param data Response data
+ * @param len Data length
+ * @param status Pointer to status message 3 structure
+ * @return true on success, false on failure
+ */
+bool vesc_parse_status_msg_3(uint8_t *data, uint8_t len, vesc_status_msg_3_t *status);
+
+/**
+ * Parse CAN_PACKET_STATUS_4 (Status Message 4) response
+ * 
+ * @param data Response data
+ * @param len Data length
+ * @param status Pointer to status message 4 structure
+ * @return true on success, false on failure
+ */
+bool vesc_parse_status_msg_4(uint8_t *data, uint8_t len, vesc_status_msg_4_t *status);
+
+/**
+ * Parse CAN_PACKET_STATUS_5 (Status Message 5) response
+ * 
+ * @param data Response data
+ * @param len Data length
+ * @param status Pointer to status message 5 structure
+ * @return true on success, false on failure
+ */
+bool vesc_parse_status_msg_5(uint8_t *data, uint8_t len, vesc_status_msg_5_t *status);
+
+/**
+ * Parse CAN_PACKET_STATUS_6 (Status Message 6) response
+ * 
+ * @param data Response data
+ * @param len Data length
+ * @param status Pointer to status message 6 structure
+ * @return true on success, false on failure
+ */
+bool vesc_parse_status_msg_6(uint8_t *data, uint8_t len, vesc_status_msg_6_t *status);
 
 #ifdef __cplusplus
 }

@@ -287,6 +287,75 @@ typedef struct {
 } vesc_chuck_data_t;
 ```
 
+## Status Message Structures
+
+The SDK provides structures and parsing functions for VESC CAN status messages. These messages are automatically sent by VESC controllers when status reporting is enabled.
+
+### `vesc_status_msg_1_t`
+```c
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    float rpm;                // Motor RPM
+    float current;            // Motor current (A)
+    float duty;               // Duty cycle (0.0-1.0)
+    bool valid;               // Response validity
+} vesc_status_msg_1_t;
+```
+
+### `vesc_status_msg_2_t`
+```c
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    float amp_hours;          // Consumed amp hours (Ah)
+    float amp_hours_charged;  // Charged amp hours (Ah)
+    bool valid;               // Response validity
+} vesc_status_msg_2_t;
+```
+
+### `vesc_status_msg_3_t`
+```c
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    float watt_hours;         // Consumed watt hours (Wh)
+    float watt_hours_charged; // Charged watt hours (Wh)
+    bool valid;               // Response validity
+} vesc_status_msg_3_t;
+```
+
+### `vesc_status_msg_4_t`
+```c
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    float temp_fet;           // FET temperature (°C)
+    float temp_motor;         // Motor temperature (°C)
+    float current_in;         // Input current (A)
+    float pid_pos_now;        // Current PID position
+    bool valid;               // Response validity
+} vesc_status_msg_4_t;
+```
+
+### `vesc_status_msg_5_t`
+```c
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    int32_t tacho_value;      // Tachometer value
+    float v_in;               // Input voltage (V)
+    bool valid;               // Response validity
+} vesc_status_msg_5_t;
+```
+
+### `vesc_status_msg_6_t`
+```c
+typedef struct {
+    uint8_t controller_id;    // Controller ID
+    float adc_1;              // ADC1 value (0.0-1.0)
+    float adc_2;              // ADC2 value (0.0-1.0)
+    float adc_3;              // ADC3 value (0.0-1.0)
+    float ppm;                // PPM value (0.0-1.0)
+    bool valid;               // Response validity
+} vesc_status_msg_6_t;
+```
+
 ## Python Integration
 
 The SDK includes Python bindings and monitoring tools:
@@ -337,10 +406,110 @@ See the `examples/` directory for complete working examples:
 - `status_monitoring.c` - Status monitoring
 - `python_example.py` - Python usage example
 
+## Usage Examples
+
+### Basic Motor Control
+```c
+#include "vesc_can_sdk.h"
+
+// Initialize the SDK
+vesc_can_init(my_can_send_function, 1);
+
+// Set response callback
+vesc_set_response_callback(my_response_callback);
+
+// Control motor
+vesc_set_duty(1, 0.5f);      // 50% duty cycle
+vesc_set_current(1, 10.0f);  // 10A current
+vesc_set_rpm(1, 1000.0f);    // 1000 RPM
+```
+
+### Status Message Handling
+```c
+void response_callback(uint8_t controller_id, uint8_t command, uint8_t *data, uint8_t len) {
+    switch (command) {
+        case CAN_PACKET_STATUS: {
+            vesc_status_msg_1_t status;
+            if (vesc_parse_status_msg_1(data, len, &status)) {
+                printf("VESC %d: RPM=%.0f, Current=%.2fA, Duty=%.1f%%\n",
+                       status.controller_id, status.rpm, status.current, status.duty * 100.0f);
+            }
+        } break;
+        
+        case CAN_PACKET_STATUS_4: {
+            vesc_status_msg_4_t status;
+            if (vesc_parse_status_msg_4(data, len, &status)) {
+                printf("VESC %d: FET Temp=%.1f°C, Motor Temp=%.1f°C, Input Current=%.2fA\n",
+                       status.controller_id, status.temp_fet, status.temp_motor, status.current_in);
+            }
+        } break;
+    }
+}
+```
+
 ## License
 
 This SDK is released under the MIT License. See LICENSE file for details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests. 
+Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
+
+## Status Message Parsing Functions
+
+These functions parse VESC CAN status messages that are automatically sent by VESC controllers.
+
+#### `vesc_parse_status_msg_1(uint8_t *data, uint8_t len, vesc_status_msg_1_t *status)`
+Parse CAN_PACKET_STATUS (Status Message 1) response.
+- `data`: Response data
+- `len`: Data length
+- `status`: Pointer to status message 1 structure
+- **Returns**: `true` on success, `false` on failure
+- **Data**: RPM, current, duty cycle
+
+#### `vesc_parse_status_msg_2(uint8_t *data, uint8_t len, vesc_status_msg_2_t *status)`
+Parse CAN_PACKET_STATUS_2 (Status Message 2) response.
+- `data`: Response data
+- `len`: Data length
+- `status`: Pointer to status message 2 structure
+- **Returns**: `true` on success, `false` on failure
+- **Data**: Amp hours consumed and charged
+
+#### `vesc_parse_status_msg_3(uint8_t *data, uint8_t len, vesc_status_msg_3_t *status)`
+Parse CAN_PACKET_STATUS_3 (Status Message 3) response.
+- `data`: Response data
+- `len`: Data length
+- `status`: Pointer to status message 3 structure
+- **Returns**: `true` on success, `false` on failure
+- **Data**: Watt hours consumed and charged
+
+#### `vesc_parse_status_msg_4(uint8_t *data, uint8_t len, vesc_status_msg_4_t *status)`
+Parse CAN_PACKET_STATUS_4 (Status Message 4) response.
+- `data`: Response data
+- `len`: Data length
+- `status`: Pointer to status message 4 structure
+- **Returns**: `true` on success, `false` on failure
+- **Data**: Temperatures, input current, PID position
+
+#### `vesc_parse_status_msg_5(uint8_t *data, uint8_t len, vesc_status_msg_5_t *status)`
+Parse CAN_PACKET_STATUS_5 (Status Message 5) response.
+- `data`: Response data
+- `len`: Data length
+- `status`: Pointer to status message 5 structure
+- **Returns**: `true` on success, `false` on failure
+- **Data**: Tachometer value, input voltage
+
+#### `vesc_parse_status_msg_6(uint8_t *data, uint8_t len, vesc_status_msg_6_t *status)`
+Parse CAN_PACKET_STATUS_6 (Status Message 6) response.
+- `data`: Response data
+- `len`: Data length
+- `status`: Pointer to status message 6 structure
+- **Returns**: `true` on success, `false` on failure
+- **Data**: ADC values, PPM value
+
+#### `vesc_parse_fw_version(uint8_t *data, uint8_t len, vesc_fw_version_t *version)`
+Parse firmware version response.
+- `data`: Response data
+- `len`: Data length
+- `version`: Pointer to firmware version structure
+- **Returns**: `true` on success, `false` on failure 
