@@ -228,9 +228,10 @@ typedef void (*vesc_response_callback_t)(uint8_t controller_id, uint8_t command,
  * Initialize the VESC CAN SDK
  * 
  * @param can_send_func Pointer to user's CAN send function
+ * @param controller_id VESC controller ID (0-255) to listen for
  * @return true on success, false on failure
  */
-bool vesc_can_init(vesc_can_send_func_t can_send_func);
+bool vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t controller_id);
 
 /**
  * Set the response callback function
@@ -238,6 +239,13 @@ bool vesc_can_init(vesc_can_send_func_t can_send_func);
  * @param callback Pointer to callback function
  */
 void vesc_set_response_callback(vesc_response_callback_t callback);
+
+/**
+ * Set the controller ID to filter incoming CAN frames
+ * 
+ * @param controller_id VESC controller ID (0-255) to listen for
+ */
+void vesc_set_controller_id(uint8_t controller_id);
 
 /**
  * Process received CAN frame

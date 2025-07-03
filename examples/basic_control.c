@@ -138,7 +138,7 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, signal_handler);
     
     // Initialize VESC CAN SDK
-    if (!vesc_can_init(example_can_send)) {
+    if (!vesc_can_init(example_can_send, vesc_id)) {
         printf("Failed to initialize VESC CAN SDK\n");
         return 1;
     }

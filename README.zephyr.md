@@ -145,8 +145,8 @@ void main(void) {
         return;
     }
     
-    // Initialize VESC CAN SDK
-    if (!vesc_can_init(vesc_can_send)) {
+    // Initialize VESC CAN SDK with controller ID
+    if (!vesc_can_init(vesc_can_send, VESC_CONTROLLER_ID)) {
         printf("Failed to initialize VESC CAN SDK\n");
         return;
     }
@@ -209,12 +209,67 @@ vesc_set_current(VESC_CONTROLLER_ID, 10.0f);
 vesc_set_rpm(VESC_CONTROLLER_ID, 1000.0f);
 ```
 
+### Controller ID Filtering
+
+The SDK automatically filters incoming CAN frames to only process those from the configured controller ID. This prevents interference from other VESC controllers on the same CAN bus.
+
+**Initialization with Controller ID:**
+```c
+// Initialize SDK to listen for controller ID 1
+if (!vesc_can_init(vesc_can_send, 1)) {
+    printf("Failed to initialize VESC CAN SDK\n");
+    return;
+}
+```
+
+**Runtime Controller ID Changes:**
+You can change the controller ID at runtime if needed:
+```c
+// Change to listen for controller ID 2
+vesc_set_controller_id(2);
+```
+
+**Benefits:**
+- Only processes CAN frames from the intended VESC controller
+- Prevents interference from other controllers on the same CAN bus
+- Improves communication reliability in multi-controller setups
+- Allows dynamic switching between different VESC controllers
+
+### Multi-Controller Setups
+
+When working with multiple VESC controllers on the same CAN bus, the controller ID filtering ensures reliable communication:
+
+```c
+// Initialize SDK for controller ID 1
+if (!vesc_can_init(vesc_can_send, 1)) {
+    printf("Failed to initialize VESC CAN SDK\n");
+    return;
+}
+
+// Communicate with controller 1
+vesc_get_values(1);
+vesc_set_duty(1, 0.5f);
+
+// Switch to controller 2
+vesc_set_controller_id(2);
+vesc_get_values(2);
+vesc_set_duty(2, 0.3f);
+
+// Switch back to controller 1
+vesc_set_controller_id(1);
+vesc_get_values(1);
+```
+
+This approach allows you to communicate with multiple VESC controllers sequentially while ensuring that only responses from the intended controller are processed.
+
 ## Notes
 
 - You may need to adapt the CAN send/receive functions to your board/application.
-- The VESC controller ID should match the ID configured in your VESC device.
+- The VESC controller ID must be specified during SDK initialization and should match the ID configured in your VESC device.
+- The SDK automatically filters incoming CAN frames to only process those from the configured controller ID.
 - Extended CAN IDs are used by VESC (29-bit IDs).
 - The SDK handles packet fragmentation automatically for long commands.
+- You can change the controller ID at runtime using `vesc_set_controller_id()` if needed.
 
 ## License
 

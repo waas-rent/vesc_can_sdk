@@ -217,7 +217,7 @@ int main(int argc, char *argv[]) {
     }
     
     // Initialize VESC CAN SDK
-    if (!vesc_can_init(socketcan_send)) {
+    if (!vesc_can_init(socketcan_send, vesc_id)) {
         printf("Failed to initialize VESC CAN SDK\n");
         close(can_socket);
         return 1;

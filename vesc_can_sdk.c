@@ -240,14 +240,14 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
 // Public API Implementation
 // ============================================================================
 
-bool vesc_can_init(vesc_can_send_func_t can_send_func) {
+bool vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t controller_id) {
     if (!can_send_func) {
         return false;
     }
     
     memset(&sdk_state, 0, sizeof(sdk_state));
     sdk_state.can_send_func = can_send_func;
-    sdk_state.controller_id = 0; // Default controller ID
+    sdk_state.controller_id = controller_id;
     sdk_state.initialized = true;
     
     return true;
@@ -257,7 +257,19 @@ void vesc_set_response_callback(vesc_response_callback_t callback) {
     sdk_state.response_callback = callback;
 }
 
+void vesc_set_controller_id(uint8_t controller_id) {
+    sdk_state.controller_id = controller_id;
+}
+
 void vesc_process_can_frame(uint32_t id, uint8_t *data, uint8_t len) {
+    // Extract controller ID from CAN frame
+    uint8_t frame_controller_id = id & 0xFF;
+    
+    // Only process frames from the configured controller ID
+    if (frame_controller_id != sdk_state.controller_id) {
+        return;
+    }
+    
     vesc_process_can_frame_internal(id, data, len);
 }
 
