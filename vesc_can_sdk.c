@@ -151,19 +151,14 @@ static void vesc_debug_hex_dump(const char *prefix, uint8_t *data, uint8_t len) 
  */
 static const char* vesc_debug_get_command_name(uint8_t command) {
     switch (command) {
-        case COMM_SET_DUTY: return "SET_DUTY";
-        case COMM_SET_CURRENT: return "SET_CURRENT";
-        case COMM_SET_CURRENT_BRAKE: return "SET_CURRENT_BRAKE";
-        case COMM_SET_RPM: return "SET_RPM";
-        case COMM_SET_POS: return "SET_POS";
-        case COMM_SET_HANDBRAKE: return "SET_HANDBRAKE";
+        case COMM_FW_VERSION: return "FW_VERSION";
+        case COMM_GET_VALUES: return "GET_VALUES";
         case COMM_DETECT_MOTOR_R_L: return "DETECT_MOTOR_R_L";
         case COMM_DETECT_MOTOR_PARAM: return "DETECT_MOTOR_PARAM";
         case COMM_DETECT_MOTOR_FLUX_LINKAGE: return "DETECT_MOTOR_FLUX_LINKAGE";
-        case COMM_GET_VALUES: return "GET_VALUES";
         case COMM_GET_DECODED_ADC: return "GET_DECODED_ADC";
         case COMM_GET_DECODED_PPM: return "GET_DECODED_PPM";
-        case COMM_FW_VERSION: return "FW_VERSION";
+        case COMM_CAN_UPDATE_BAUD_ALL: return "CAN_UPDATE_BAUD_ALL";
         default: return "UNKNOWN";
     }
 }
@@ -178,8 +173,6 @@ static const char* vesc_debug_get_packet_name(uint8_t packet_type) {
         case CAN_PACKET_SET_CURRENT_BRAKE: return "SET_CURRENT_BRAKE";
         case CAN_PACKET_SET_RPM: return "SET_RPM";
         case CAN_PACKET_SET_POS: return "SET_POS";
-        case CAN_PACKET_SET_HANDBRAKE: return "SET_HANDBRAKE";
-        case CAN_PACKET_SET_CHUCK_DATA: return "SET_CHUCK_DATA";
         case CAN_PACKET_FILL_RX_BUFFER: return "FILL_RX_BUFFER";
         case CAN_PACKET_FILL_RX_BUFFER_LONG: return "FILL_RX_BUFFER_LONG";
         case CAN_PACKET_PROCESS_RX_BUFFER: return "PROCESS_RX_BUFFER";

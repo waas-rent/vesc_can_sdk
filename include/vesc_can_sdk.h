@@ -82,95 +82,85 @@ typedef struct {
 // Command Definitions
 // ============================================================================
 
-// Motor Control Commands
-#define COMM_SET_DUTY              0
-#define COMM_SET_CURRENT           1
-#define COMM_SET_CURRENT_BRAKE     2
-#define COMM_SET_RPM               3
-#define COMM_SET_POS               4
-#define COMM_SET_HANDBRAKE         5
-
-// Motor Detection Commands
+#define COMM_FW_VERSION            0
+#define COMM_GET_VALUES            4
 #define COMM_DETECT_MOTOR_R_L      25
 #define COMM_DETECT_MOTOR_PARAM    26
 #define COMM_DETECT_MOTOR_FLUX_LINKAGE 27
-
-// Configuration Commands
-#define COMM_CAN_UPDATE_BAUD_ALL   158
-#define COMM_SET_CHUCK_DATA        45
-
-// Status Commands
-#define COMM_GET_VALUES            27
 #define COMM_GET_DECODED_ADC       30
 #define COMM_GET_DECODED_PPM       31
-#define COMM_FW_VERSION            0
+#define COMM_CAN_UPDATE_BAUD_ALL   158
 
-// CAN Packet Types
-#define CAN_PACKET_SET_DUTY        0
-#define CAN_PACKET_SET_CURRENT     1
-#define CAN_PACKET_SET_CURRENT_BRAKE 2
-#define CAN_PACKET_SET_RPM         3
-#define CAN_PACKET_SET_POS         4
-#define CAN_PACKET_SET_HANDBRAKE   5
-#define CAN_PACKET_SET_SERVO_POS   5
-#define CAN_PACKET_SET_CHUCK_DATA  6
-#define CAN_PACKET_SET_CURRENT_NOREV 7
-#define CAN_PACKET_SET_CURRENT_NOREV_BRAKE 8
-#define CAN_PACKET_SET_CURRENT_HANDBRAKE 9
-#define CAN_PACKET_SET_CURRENT_HANDBRAKE_NOREV 10
-#define CAN_PACKET_SET_CURRENT_FWD 11
-#define CAN_PACKET_SET_CURRENT_REV 12
-#define CAN_PACKET_SET_CURRENT_BRAKE_FWD 13
-#define CAN_PACKET_SET_CURRENT_BRAKE_REV 14
-#define CAN_PACKET_SET_CURRENT_HANDBRAKE_FWD 15
-#define CAN_PACKET_SET_CURRENT_HANDBRAKE_REV 16
-#define CAN_PACKET_SET_CURRENT_HANDBRAKE_FWD_NOREV 17
-#define CAN_PACKET_SET_CURRENT_HANDBRAKE_REV_NOREV 18
-#define CAN_PACKET_FILL_RX_BUFFER  5
-#define CAN_PACKET_FILL_RX_BUFFER_LONG 6
-#define CAN_PACKET_PROCESS_RX_BUFFER 7
-#define CAN_PACKET_PROCESS_SHORT_BUFFER 8
-#define CAN_PACKET_STATUS          9
-#define CAN_PACKET_STATUS_2        14
-#define CAN_PACKET_STATUS_3        15
-#define CAN_PACKET_STATUS_4        16
-#define CAN_PACKET_STATUS_5        27
-#define CAN_PACKET_STATUS_6        58
-#define CAN_PACKET_PING            28
-#define CAN_PACKET_PONG            29
-#define CAN_PACKET_DETECT_APPLY_ALL_FOC 30
-#define CAN_PACKET_CONF_CURRENT_LIMITS 31
-#define CAN_PACKET_CONF_STORE_CURRENT_LIMITS 32
-#define CAN_PACKET_CONF_CURRENT_LIMITS_IN 33
-#define CAN_PACKET_CONF_STORE_CURRENT_LIMITS_IN 34
-#define CAN_PACKET_CONF_FOC_ERPMS 35
-#define CAN_PACKET_CONF_STORE_FOC_ERPMS 36
-#define CAN_PACKET_CONF_BATTERY_CUT 37
-#define CAN_PACKET_CONF_STORE_BATTERY_CUT 38
-#define CAN_PACKET_SHUTDOWN        39
-#define CAN_PACKET_IO_BOARD_ADC_1_TO_4 40
-#define CAN_PACKET_IO_BOARD_ADC_5_TO_8 41
-#define CAN_PACKET_IO_BOARD_ADC_9_TO_12 42
-#define CAN_PACKET_IO_BOARD_DIGITAL_IN 43
-#define CAN_PACKET_IO_BOARD_SET_OUTPUT_DIGITAL 44
-#define CAN_PACKET_IO_BOARD_SET_OUTPUT_PWM 45
-#define CAN_PACKET_IO_BOARD_SET_SERVO 46
-#define CAN_PACKET_BMS_GET_VALUES  47
-#define CAN_PACKET_BMS_SET_CHARGE_ALLOWED 48
-#define CAN_PACKET_BMS_SET_BALANCE_OVERRIDE 49
-#define CAN_PACKET_BMS_RESET_COUNTERS 50
-#define CAN_PACKET_BMS_FORCE_BALANCE 51
-#define CAN_PACKET_PSW_GET_STATUS  52
-#define CAN_PACKET_PSW_SWITCH      53
-#define CAN_PACKET_UPDATE_PID_POS_OFFSET 54
-#define CAN_PACKET_POLL_ROTOR_POS  55
-#define CAN_PACKET_BMS_FWD_CAN_RX  56
-#define CAN_PACKET_BMS_HW_DATA     57
-#define CAN_PACKET_GNSS_LAT        58
-#define CAN_PACKET_GNSS_LON        59
-#define CAN_PACKET_GNSS_ALT_SPEED_HDOP 60
-#define CAN_PACKET_UPDATE_BAUD     61
+// ============================================================================
+// Packet Definitions
+// ============================================================================
 
+// Packets
+#define CAN_PACKET_SET_DUTY                        0
+#define CAN_PACKET_SET_CURRENT                     1
+#define CAN_PACKET_SET_CURRENT_BRAKE               2
+#define CAN_PACKET_SET_RPM                         3
+#define CAN_PACKET_SET_POS                         4
+#define CAN_PACKET_FILL_RX_BUFFER                  5
+#define CAN_PACKET_FILL_RX_BUFFER_LONG             6
+#define CAN_PACKET_PROCESS_RX_BUFFER               7
+#define CAN_PACKET_PROCESS_SHORT_BUFFER            8
+#define CAN_PACKET_STATUS                          9
+#define CAN_PACKET_SET_CURRENT_REL                 10
+#define CAN_PACKET_SET_CURRENT_BRAKE_REL           11
+#define CAN_PACKET_SET_CURRENT_HANDBRAKE           12
+#define CAN_PACKET_SET_CURRENT_HANDBRAKE_REL       13
+#define CAN_PACKET_STATUS_2                        14
+#define CAN_PACKET_STATUS_3                        15
+#define CAN_PACKET_STATUS_4                        16
+#define CAN_PACKET_PING                            17
+#define CAN_PACKET_PONG                            18
+#define CAN_PACKET_DETECT_APPLY_ALL_FOC            19
+#define CAN_PACKET_DETECT_APPLY_ALL_FOC_RES        20
+#define CAN_PACKET_CONF_CURRENT_LIMITS             21
+#define CAN_PACKET_CONF_STORE_CURRENT_LIMITS       22
+#define CAN_PACKET_CONF_CURRENT_LIMITS_IN          23
+#define CAN_PACKET_CONF_STORE_CURRENT_LIMITS_IN    24
+#define CAN_PACKET_CONF_FOC_ERPMS                  25
+#define CAN_PACKET_CONF_STORE_FOC_ERPMS            26
+#define CAN_PACKET_STATUS_5                        27
+#define CAN_PACKET_POLL_TS5700N8501_STATUS         28
+#define CAN_PACKET_CONF_BATTERY_CUT                29
+#define CAN_PACKET_CONF_STORE_BATTERY_CUT          30
+#define CAN_PACKET_SHUTDOWN                        31
+#define CAN_PACKET_IO_BOARD_ADC_1_TO_4             32
+#define CAN_PACKET_IO_BOARD_ADC_5_TO_8             33
+#define CAN_PACKET_IO_BOARD_ADC_9_TO_12            34
+#define CAN_PACKET_IO_BOARD_DIGITAL_IN             35
+#define CAN_PACKET_IO_BOARD_SET_OUTPUT_DIGITAL     36
+#define CAN_PACKET_IO_BOARD_SET_OUTPUT_PWM         37
+#define CAN_PACKET_BMS_V_TOT                       38
+#define CAN_PACKET_BMS_I                           39
+#define CAN_PACKET_BMS_AH_WH                       40
+#define CAN_PACKET_BMS_V_CELL                      41
+#define CAN_PACKET_BMS_BAL                         42
+#define CAN_PACKET_BMS_TEMPS                       43
+#define CAN_PACKET_BMS_HUM                         44
+#define CAN_PACKET_BMS_SOC_SOH_TEMP_STAT           45
+#define CAN_PACKET_PSW_STAT                        46
+#define CAN_PACKET_PSW_SWITCH                      47
+#define CAN_PACKET_BMS_HW_DATA_1                   48
+#define CAN_PACKET_BMS_HW_DATA_2                   49
+#define CAN_PACKET_BMS_HW_DATA_3                   50
+#define CAN_PACKET_BMS_HW_DATA_4                   51
+#define CAN_PACKET_BMS_HW_DATA_5                   52
+#define CAN_PACKET_BMS_AH_WH_CHG_TOTAL             53
+#define CAN_PACKET_BMS_AH_WH_DIS_TOTAL             54
+#define CAN_PACKET_UPDATE_PID_POS_OFFSET           55
+#define CAN_PACKET_POLL_ROTOR_POS                  56
+#define CAN_PACKET_NOTIFY_BOOT                     57
+#define CAN_PACKET_STATUS_6                        58
+#define CAN_PACKET_GNSS_TIME                       59
+#define CAN_PACKET_GNSS_LAT                        60
+#define CAN_PACKET_GNSS_LON                        61
+#define CAN_PACKET_GNSS_ALT_SPEED_HDOP             62
+#define CAN_PACKET_UPDATE_BAUD                     63
+#define CAN_PACKET_MAKE_ENUM_32_BITS               0xFFFFFFFF,
 // ============================================================================
 // Response Structures
 // ============================================================================
@@ -678,4 +668,4 @@ void vesc_debug_print_stats(void);
 }
 #endif
 
-#endif // VESC_CAN_SDK_H 
+#endif // VESC_CAN_SDK_H
