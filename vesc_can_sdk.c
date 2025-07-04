@@ -577,7 +577,7 @@ void vesc_process_can_frame(uint32_t id, uint8_t *data, uint8_t len) {
 }
 
 // ============================================================================
-// Motor Control Functions
+// Motor Control Functions (using VESC packet protocol)
 // ============================================================================
 
 void vesc_set_duty(uint8_t controller_id, float duty) {
@@ -704,6 +704,35 @@ void vesc_set_handbrake(uint8_t controller_id, float current) {
     uint32_t can_id = controller_id | ((uint32_t)CAN_PACKET_SET_CURRENT_HANDBRAKE << 8);
     vesc_can_send_packet(can_id, buffer, index);
 }
+
+// ============================================================================
+// Get Firmware Version
+// ============================================================================
+
+void vesc_get_fw_version(uint8_t controller_id) {
+    uint8_t buffer[1];
+    buffer[0] = COMM_FW_VERSION;
+
+    // Debug output for command
+    if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
+        const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+        vesc_debug_output("[%s] Command: VESC#%d GET_FW_VERSION\n", 
+                         timestamp, controller_id);
+        
+        if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
+            vesc_debug_hex_dump("  Command Data: ", buffer, 1);
+        }
+        
+        // Update statistics
+        if (debug_state.config.enable_statistics) {
+            debug_state.stats.command_count++;
+        }
+    }
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, 1);
+}
+
 
 // ============================================================================
 // Motor Detection Functions
@@ -864,30 +893,6 @@ void vesc_get_decoded_ppm(uint8_t controller_id) {
     if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
         const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
         vesc_debug_output("[%s] Command: VESC#%d GET_DECODED_PPM\n", 
-                         timestamp, controller_id);
-        
-        if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
-            vesc_debug_hex_dump("  Command Data: ", buffer, 1);
-        }
-        
-        // Update statistics
-        if (debug_state.config.enable_statistics) {
-            debug_state.stats.command_count++;
-        }
-    }
-
-    // Use vesc_send_command to handle CRC and stop byte
-    vesc_send_command(controller_id, buffer, 1);
-}
-
-void vesc_get_fw_version(uint8_t controller_id) {
-    uint8_t buffer[1];
-    buffer[0] = COMM_FW_VERSION;
-
-    // Debug output for command
-    if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
-        const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
-        vesc_debug_output("[%s] Command: VESC#%d GET_FW_VERSION\n", 
                          timestamp, controller_id);
         
         if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
