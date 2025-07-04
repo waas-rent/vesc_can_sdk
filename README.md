@@ -25,6 +25,7 @@ Using this SDK may result in hardware damage or unsafe operation if used imprope
 - **Comprehensive command support** - Major VESC commands and packets implemented
 - **Response parsing** - Support for parsing VESC responses
 - **Python integration** - Python monitoring tools included
+- **Zephyr 3.x and 4.x support** - Works seamlessly as a Zephyr module, see README.zephyr.md 
 
 ## Supported Commands
 
