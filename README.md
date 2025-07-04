@@ -1,8 +1,12 @@
 # VESC CAN SDK
 
-A pure C SDK for communicating with VESC motor controllers over CAN bus. This SDK provides a simple interface to send commands and receive responses from VESC devices without requiring any special libraries beyond a user-provided CAN send function.
+A pure C SDK for communicating with VESC controllers over CAN bus. This SDK provides a simple interface to send commands and receive responses from VESC devices without requiring any special libraries beyond a user-provided CAN send function.
 
-**Compatible with VESC firmware version 6.06**
+VESC is a registered trademark of Benjamin Vedder. Read the [trademark policies](https://vesc-project.com/trademark_policies) for more information.
+
+## Compatibility
+
+Compatible with VESC firmware version 6.06
 
 ## Features
 
