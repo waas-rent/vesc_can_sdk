@@ -12,13 +12,13 @@ VESC is a registered trademark of Benjamin Vedder. Read the [trademark policies]
 
 ## Compatibility
 
-Compatible with VESC firmware version 6.06
+Compatible with VESC firmware version 6.06 (see https://github.com/vedderb/bldc)
 
 ## Features
 
 - **Pure C implementation** - No external dependencies
 - **Simple interface** - Just provide a CAN send function
-- **Comprehensive command support** - All major VESC commands and packets implemented
+- **Comprehensive command support** - Major VESC commands and packets implemented
 - **Response parsing** - Support for parsing VESC responses
 - **Python integration** - Python monitoring tools included
 
