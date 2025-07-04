@@ -15,26 +15,41 @@ A pure C SDK for communicating with VESC motor controllers over CAN bus. This SD
 ## Supported Commands
 
 ### Motor Control Commands
-- `COMM_SET_DUTY` - Set motor duty cycle (-1.0 to 1.0)
-- `COMM_SET_CURRENT` - Set motor current in Amperes
-- `COMM_SET_CURRENT_BRAKE` - Set braking current in Amperes
-- `COMM_SET_RPM` - Set motor RPM
-- `COMM_SET_HANDBRAKE` - Set handbrake current
+- `vesc_set_duty()` - Set motor duty cycle (-1.0 to 1.0)
+- `vesc_set_current()` - Set motor current in Amperes
+- `vesc_set_current_brake()` - Set braking current in Amperes
+- `vesc_set_rpm()` - Set motor RPM
+- `vesc_set_handbrake()` - Set handbrake current
 
 ### Motor Detection Commands
-- `COMM_DETECT_MOTOR_R_L` - Detect motor resistance and inductance
-- `COMM_DETECT_MOTOR_PARAM` - Detect motor parameters (BLDC)
-- `COMM_DETECT_MOTOR_FLUX_LINKAGE` - Detect motor flux linkage
+- `vesc_detect_motor_r_l()` - Detect motor resistance and inductance
+- `vesc_detect_motor_param()` - Detect motor parameters (BLDC)
+- `vesc_detect_motor_flux_linkage()` - Detect motor flux linkage
 
 ### Configuration Commands
-- `COMM_CAN_UPDATE_BAUD_ALL` - Update CAN baud rate on all devices
-- `COMM_SET_CHUCK_DATA` - Set nunchuk/joystick data
+- `vesc_can_update_baud_all()` - Update CAN baud rate on all devices
 
 ### Status Commands
-- `COMM_GET_VALUES` - Get motor status values
-- `COMM_GET_DECODED_ADC` - Get decoded ADC values
-- `COMM_GET_DECODED_PPM` - Get decoded PPM values
-- `COMM_FW_VERSION` - Get firmware version
+- `vesc_get_values()` - Get motor status values
+- `vesc_get_decoded_adc()` - Get decoded ADC values
+- `vesc_get_decoded_ppm()` - Get decoded PPM values
+- `vesc_get_fw_version()` - Get firmware version
+
+### Status Message Parsing
+The SDK automatically handles VESC CAN status messages and provides parsing functions for:
+- `vesc_parse_status_msg_1()` - Parse status message 1 (RPM, current, duty)
+- `vesc_parse_status_msg_2()` - Parse status message 2 (amp hours)
+- `vesc_parse_status_msg_3()` - Parse status message 3 (watt hours)
+- `vesc_parse_status_msg_4()` - Parse status message 4 (temperatures, input current)
+- `vesc_parse_status_msg_5()` - Parse status message 5 (tachometer, voltage)
+- `vesc_parse_status_msg_6()` - Parse status message 6 (ADC values, PPM)
+
+### Debug and Development
+- `vesc_debug_configure()` - Configure debug output
+- `vesc_debug_enable()` - Enable debug output
+- `vesc_debug_disable()` - Disable debug output
+- `vesc_debug_get_stats()` - Get debug statistics
+- `vesc_debug_reset_stats()` - Reset debug statistics
 
 ## Quick Start
 
@@ -170,6 +185,54 @@ Get decoded PPM values.
 Get firmware version.
 - `controller_id`: VESC controller ID (0-255)
 - **Response**: `vesc_fw_version_t` structure
+
+### SDK Initialization and Control
+
+#### `vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t controller_id)`
+Initialize the VESC CAN SDK.
+- `can_send_func`: User-provided CAN send function
+- `controller_id`: Default controller ID
+- **Returns**: `true` on success, `false` on failure
+
+#### `vesc_set_response_callback(vesc_response_callback_t callback)`
+Set the response callback function.
+- `callback`: Function to handle VESC responses
+
+#### `vesc_set_controller_id(uint8_t controller_id)`
+Set the default controller ID.
+- `controller_id`: New default controller ID
+
+#### `vesc_process_can_frame(uint32_t id, uint8_t *data, uint8_t len)`
+Process incoming CAN frame.
+- `id`: CAN frame ID
+- `data`: CAN frame data
+- `len`: Data length
+
+### Debug Functions
+
+#### `vesc_debug_configure(vesc_debug_config_t *config)`
+Configure debug output.
+- `config`: Debug configuration structure
+- **Returns**: `true` on success, `false` on failure
+
+#### `vesc_debug_enable(uint8_t level, uint16_t categories)`
+Enable debug output.
+- `level`: Debug level (0-3)
+- `categories`: Debug categories (bit flags)
+
+#### `vesc_debug_disable(void)`
+Disable debug output.
+
+#### `vesc_debug_get_stats(vesc_debug_stats_t *stats)`
+Get debug statistics.
+- `stats`: Pointer to statistics structure
+- **Returns**: `true` on success, `false` on failure
+
+#### `vesc_debug_reset_stats(void)`
+Reset debug statistics.
+
+#### `vesc_debug_print_stats(void)`
+Print debug statistics to console.
 
 ## Response Structures
 
@@ -411,6 +474,59 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 
 In the context of VESC communication, there is a distinction between sending packets and commands. Packets are the raw data structures transmitted over the CAN bus, while commands are higher-level abstractions that represent specific actions or queries. This SDK supports both packets and commands seamlessly, abstracting away the differences so users can focus on their application logic without worrying about the underlying details.
 
+## Response Parsing Functions
+
+These functions parse VESC responses and status messages.
+
+#### `vesc_parse_get_values(uint8_t *data, uint8_t len, vesc_values_t *values)`
+Parse COMM_GET_VALUES response.
+- `data`: Response data
+- `len`: Data length
+- `values`: Pointer to values structure
+- **Returns**: `true` on success, `false` on failure
+
+#### `vesc_parse_motor_rl_response(uint8_t *data, uint8_t len, vesc_motor_rl_response_t *response)`
+Parse motor resistance/inductance detection response.
+- `data`: Response data
+- `len`: Data length
+- `response`: Pointer to motor RL response structure
+- **Returns**: `true` on success, `false` on failure
+
+#### `vesc_parse_motor_param_response(uint8_t *data, uint8_t len, vesc_motor_param_response_t *response)`
+Parse motor parameter detection response.
+- `data`: Response data
+- `len`: Data length
+- `response`: Pointer to motor parameter response structure
+- **Returns**: `true` on success, `false` on failure
+
+#### `vesc_parse_flux_linkage_response(uint8_t *data, uint8_t len, vesc_flux_linkage_response_t *response)`
+Parse motor flux linkage detection response.
+- `data`: Response data
+- `len`: Data length
+- `response`: Pointer to flux linkage response structure
+- **Returns**: `true` on success, `false` on failure
+
+#### `vesc_parse_adc_values(uint8_t *data, uint8_t len, vesc_adc_values_t *values)`
+Parse COMM_GET_DECODED_ADC response.
+- `data`: Response data
+- `len`: Data length
+- `values`: Pointer to ADC values structure
+- **Returns**: `true` on success, `false` on failure
+
+#### `vesc_parse_ppm_values(uint8_t *data, uint8_t len, vesc_ppm_values_t *values)`
+Parse COMM_GET_DECODED_PPM response.
+- `data`: Response data
+- `len`: Data length
+- `values`: Pointer to PPM values structure
+- **Returns**: `true` on success, `false` on failure
+
+#### `vesc_parse_fw_version(uint8_t *data, uint8_t len, vesc_fw_version_t *version)`
+Parse COMM_FW_VERSION response.
+- `data`: Response data
+- `len`: Data length
+- `version`: Pointer to firmware version structure
+- **Returns**: `true` on success, `false` on failure
+
 ## Status Message Parsing Functions
 
 These functions parse VESC CAN status messages that are automatically sent by VESC controllers.
@@ -462,10 +578,3 @@ Parse CAN_PACKET_STATUS_6 (Status Message 6) response.
 - `status`: Pointer to status message 6 structure
 - **Returns**: `true` on success, `false` on failure
 - **Data**: ADC values, PPM value
-
-#### `vesc_parse_fw_version(uint8_t *data, uint8_t len, vesc_fw_version_t *version)`
-Parse firmware version response.
-- `data`: Response data
-- `len`: Data length
-- `version`: Pointer to firmware version structure
-- **Returns**: `true` on success, `false` on failure
