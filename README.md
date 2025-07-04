@@ -149,11 +149,6 @@ Update CAN baud rate on all devices.
 - `kbits`: Baud rate in kbits/s (125, 250, 500, 1000)
 - `delay_msec`: Delay before applying new baud rate
 
-#### `vesc_set_chuck_data(uint8_t controller_id, vesc_chuck_data_t *data)`
-Set nunchuk/joystick data.
-- `controller_id`: VESC controller ID (0-255)
-- `data`: Pointer to chuck data structure
-
 ### Status Commands
 
 #### `vesc_get_values(uint8_t controller_id)`
@@ -272,21 +267,6 @@ typedef struct {
 } vesc_fw_version_t;
 ```
 
-### `vesc_chuck_data_t`
-```c
-typedef struct {
-    uint8_t js_x;             // Joystick X (0-255)
-    uint8_t js_y;             // Joystick Y (0-255)
-    uint8_t bt_c;             // Button C (0/1)
-    uint8_t bt_z;             // Button Z (0/1)
-    int16_t acc_x;            // Accelerometer X
-    int16_t acc_y;            // Accelerometer Y
-    int16_t acc_z;            // Accelerometer Z
-    bool rev_has_state;       // Reverse has state
-    bool is_rev;              // Is reverse
-} vesc_chuck_data_t;
-```
-
 ## Status Message Structures
 
 The SDK provides structures and parsing functions for VESC CAN status messages. These messages are automatically sent by VESC controllers when status reporting is enabled.
@@ -356,24 +336,6 @@ typedef struct {
 } vesc_status_msg_6_t;
 ```
 
-## Python Integration
-
-The SDK includes Python bindings and monitoring tools:
-
-```python
-import vesc_can_sdk
-
-# Initialize SDK
-vesc = vesc_can_sdk.VESCCAN()
-
-# Set motor duty cycle
-vesc.set_duty(1, 0.5)
-
-# Get motor values
-values = vesc.get_values(1)
-print(f"RPM: {values.rpm}, Current: {values.current_motor}A")
-```
-
 ### Python Monitoring Script
 
 Use the included `monitor_vesc.py` script to monitor VESC status:
@@ -390,21 +352,9 @@ cd vesc_can_sdk
 make
 ```
 
-### Python Bindings
-```bash
-cd vesc_can_sdk/python
-python setup.py build
-python setup.py install
-```
-
 ## Examples
 
 See the `examples/` directory for complete working examples:
-
-- `basic_control.c` - Basic motor control
-- `motor_detection.c` - Motor parameter detection
-- `status_monitoring.c` - Status monitoring
-- `python_example.py` - Python usage example
 
 ## Usage Examples
 
