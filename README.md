@@ -32,12 +32,12 @@ Compatible with VESC firmware version 6.06
 - `vesc_set_handbrake()` - Set handbrake current
 
 ### Motor Detection Commands
-- `vesc_detect_motor_r_l()` - Detect motor resistance and inductance
-- `vesc_detect_motor_param()` - Detect motor parameters (BLDC)
-- `vesc_detect_motor_flux_linkage()` - Detect motor flux linkage
+- `vesc_detect_motor_r_l()` - Detect motor resistance and inductance. This requires a connected motor. It will produce weird sounds that are ok.
+- `vesc_detect_motor_param()` - Detect motor parameters (BLDC). This requires a connected motor. ATTENTION: This will turn the motor. Make sure that it is free from any obstacles.
+- `vesc_detect_motor_flux_linkage()` - Detect motor flux linkage. This requires a connected motor.
 
 ### Configuration Commands
-- `vesc_can_update_baud_all()` - Update CAN baud rate on all devices
+- `vesc_can_update_baud_all()` - Update CAN baud rate on all VESC devices. This operation might break your setup.
 
 ### Status Commands
 - `vesc_get_values()` - Get motor status values
