@@ -1,16 +1,16 @@
 # VESC CAN SDK
 
-**Compatible with VESC firmware version 6.06**
-
 A pure C SDK for communicating with VESC motor controllers over CAN bus. This SDK provides a simple interface to send commands and receive responses from VESC devices without requiring any special libraries beyond a user-provided CAN send function.
+
+**Compatible with VESC firmware version 6.06**
 
 ## Features
 
 - **Pure C implementation** - No external dependencies
 - **Simple interface** - Just provide a CAN send function
-- **Comprehensive command support** - All major VESC commands implemented
-- **Response parsing** - Automatic parsing of VESC responses
-- **Python integration** - Python wrapper and monitoring tools included
+- **Comprehensive command support** - All major VESC commands and packets implemented
+- **Response parsing** - Support for parsing VESC responses
+- **Python integration** - Python monitoring tools included
 
 ## Supported Commands
 
