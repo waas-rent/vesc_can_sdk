@@ -35,6 +35,50 @@ extern "C" {
 #endif
 
 // ============================================================================
+// Debug Configuration
+// ============================================================================
+
+// Debug levels
+#define VESC_DEBUG_NONE        0
+#define VESC_DEBUG_BASIC       1
+#define VESC_DEBUG_DETAILED    2
+#define VESC_DEBUG_VERBOSE     3
+
+// Debug categories (bit flags)
+#define VESC_DEBUG_CAN         0x0001  // CAN communication
+#define VESC_DEBUG_COMMANDS    0x0002  // Command sending
+#define VESC_DEBUG_RESPONSES   0x0004  // Response parsing
+#define VESC_DEBUG_BUFFERS     0x0008  // Buffer management
+#define VESC_DEBUG_ERRORS      0x0010  // Error conditions
+#define VESC_DEBUG_PERFORMANCE 0x0020  // Performance metrics
+#define VESC_DEBUG_ALL         0x003F  // All categories
+
+// Debug output function type
+typedef void (*vesc_debug_output_func_t)(const char *message);
+
+// Debug configuration structure
+typedef struct {
+    uint8_t level;                    // Debug level (0-3)
+    uint16_t categories;              // Enabled categories (bit flags)
+    vesc_debug_output_func_t output_func; // Custom output function (NULL = printf)
+    bool enable_timestamps;           // Include timestamps in output
+    bool enable_statistics;           // Collect debug statistics
+} vesc_debug_config_t;
+
+// Debug statistics structure
+typedef struct {
+    uint32_t can_tx_count;           // CAN transmit count
+    uint32_t can_rx_count;           // CAN receive count
+    uint32_t command_count;          // Commands sent
+    uint32_t response_count;         // Responses received
+    uint32_t error_count;            // Error count
+    uint32_t crc_error_count;        // CRC error count
+    uint32_t buffer_overflow_count;  // Buffer overflow count
+    uint64_t total_tx_bytes;         // Total bytes transmitted
+    uint64_t total_rx_bytes;         // Total bytes received
+} vesc_debug_stats_t;
+
+// ============================================================================
 // Command Definitions
 // ============================================================================
 
@@ -578,6 +622,57 @@ bool vesc_parse_status_msg_5(uint8_t *data, uint8_t len, vesc_status_msg_5_t *st
  * @return true on success, false on failure
  */
 bool vesc_parse_status_msg_6(uint8_t *data, uint8_t len, vesc_status_msg_6_t *status);
+
+// ============================================================================
+// Debug Functions
+// ============================================================================
+
+/**
+ * Configure debugging
+ * 
+ * @param config Pointer to debug configuration structure
+ * @return true on success, false on failure
+ */
+bool vesc_debug_configure(vesc_debug_config_t *config);
+
+/**
+ * Enable debugging with basic configuration
+ * 
+ * @param level Debug level (0-3)
+ * @param categories Debug categories (bit flags)
+ * @return true on success, false on failure
+ */
+bool vesc_debug_enable(uint8_t level, uint16_t categories);
+
+/**
+ * Disable debugging
+ */
+void vesc_debug_disable(void);
+
+/**
+ * Set custom debug output function
+ * 
+ * @param output_func Custom output function (NULL = use printf)
+ */
+void vesc_debug_set_output_func(vesc_debug_output_func_t output_func);
+
+/**
+ * Get debug statistics
+ * 
+ * @param stats Pointer to statistics structure
+ * @return true on success, false on failure
+ */
+bool vesc_debug_get_stats(vesc_debug_stats_t *stats);
+
+/**
+ * Reset debug statistics
+ */
+void vesc_debug_reset_stats(void);
+
+/**
+ * Print debug statistics
+ */
+void vesc_debug_print_stats(void);
 
 #ifdef __cplusplus
 }
