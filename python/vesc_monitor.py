@@ -34,6 +34,7 @@ import threading
 from typing import Dict, Any, Optional
 import ctypes
 from ctypes import cdll, c_bool, c_uint8, c_uint32, c_float, c_int32, c_char, c_int16, c_uint16, c_uint64
+import struct
 
 # Load the VESC CAN SDK library
 try:
@@ -109,6 +110,90 @@ class VescPpmValues(ctypes.Structure):
         ("valid", c_bool)
     ]
 
+# Define missing structures
+class VescMotorParamResponse(ctypes.Structure):
+    _fields_ = [
+        ("current", c_float),
+        ("min_rpm", c_float),
+        ("low_duty", c_float),
+        ("valid", c_bool)
+    ]
+
+class VescFluxLinkageResponse(ctypes.Structure):
+    _fields_ = [
+        ("current", c_float),
+        ("min_rpm", c_float),
+        ("duty", c_float),
+        ("resistance", c_float),
+        ("valid", c_bool)
+    ]
+
+class VescStatusMsg1(ctypes.Structure):
+    _fields_ = [
+        ("temp_fet", c_float),
+        ("current_motor", c_float),
+        ("rpm", c_float),
+        ("duty_cycle", c_float),
+        ("v_in", c_float),
+        ("valid", c_bool)
+    ]
+
+class VescStatusMsg2(ctypes.Structure):
+    _fields_ = [
+        ("amp_hours", c_float),
+        ("amp_hours_charged", c_float),
+        ("watt_hours", c_float),
+        ("watt_hours_charged", c_float),
+        ("tachometer", c_int32),
+        ("tachometer_abs", c_int32),
+        ("valid", c_bool)
+    ]
+
+class VescStatusMsg3(ctypes.Structure):
+    _fields_ = [
+        ("fault_code", c_uint8),
+        ("pid_pos", c_float),
+        ("controller_id", c_uint8),
+        ("valid", c_bool)
+    ]
+
+class VescStatusMsg4(ctypes.Structure):
+    _fields_ = [
+        ("temp_mos1", c_float),
+        ("temp_mos2", c_float),
+        ("temp_mos3", c_float),
+        ("valid", c_bool)
+    ]
+
+class VescStatusMsg5(ctypes.Structure):
+    _fields_ = [
+        ("vd", c_float),
+        ("vq", c_float),
+        ("valid", c_bool)
+    ]
+
+class VescStatusMsg6(ctypes.Structure):
+    _fields_ = [
+        ("status", c_uint8),
+        ("valid", c_bool)
+    ]
+
+class VescDebugConfig(ctypes.Structure):
+    _fields_ = [
+        ("output_func", ctypes.c_void_p),
+        ("level", c_uint8),
+        ("categories", c_uint16)
+    ]
+
+class VescDebugStats(ctypes.Structure):
+    _fields_ = [
+        ("rx_packets", c_uint32),
+        ("tx_packets", c_uint32),
+        ("rx_errors", c_uint32),
+        ("tx_errors", c_uint32),
+        ("valid", c_bool)
+    ]
+
 # Define function signatures
 vesc_lib.vesc_can_init.argtypes = [ctypes.c_void_p]
 vesc_lib.vesc_can_init.restype = c_bool
@@ -137,6 +222,41 @@ vesc_lib.vesc_parse_adc_values.restype = c_bool
 
 vesc_lib.vesc_parse_ppm_values.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescPpmValues)]
 vesc_lib.vesc_parse_ppm_values.restype = c_bool
+
+# Add missing parsing functions
+vesc_lib.vesc_parse_motor_param_response.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescMotorParamResponse)]
+vesc_lib.vesc_parse_motor_param_response.restype = c_bool
+
+vesc_lib.vesc_parse_flux_linkage_response.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescFluxLinkageResponse)]
+vesc_lib.vesc_parse_flux_linkage_response.restype = c_bool
+
+vesc_lib.vesc_parse_status_msg_1.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescStatusMsg1)]
+vesc_lib.vesc_parse_status_msg_1.restype = c_bool
+
+vesc_lib.vesc_parse_status_msg_2.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescStatusMsg2)]
+vesc_lib.vesc_parse_status_msg_2.restype = c_bool
+
+vesc_lib.vesc_parse_status_msg_3.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescStatusMsg3)]
+vesc_lib.vesc_parse_status_msg_3.restype = c_bool
+
+vesc_lib.vesc_parse_status_msg_4.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescStatusMsg4)]
+vesc_lib.vesc_parse_status_msg_4.restype = c_bool
+
+vesc_lib.vesc_parse_status_msg_5.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescStatusMsg5)]
+vesc_lib.vesc_parse_status_msg_5.restype = c_bool
+
+vesc_lib.vesc_parse_status_msg_6.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescStatusMsg6)]
+vesc_lib.vesc_parse_status_msg_6.restype = c_bool
+
+# Add debug configuration functions
+vesc_lib.vesc_debug_configure.argtypes = [ctypes.POINTER(VescDebugConfig)]
+vesc_lib.vesc_debug_configure.restype = c_bool
+
+vesc_lib.vesc_debug_enable.argtypes = [c_uint8, c_uint16]
+vesc_lib.vesc_debug_enable.restype = c_bool
+
+vesc_lib.vesc_debug_get_stats.argtypes = [ctypes.POINTER(VescDebugStats)]
+vesc_lib.vesc_debug_get_stats.restype = c_bool
 
 class VescMonitor:
     def __init__(self, can_interface: str, vesc_id: int = 1):
@@ -171,7 +291,6 @@ class VescMonitor:
     def _init_can(self):
         """Initialize CAN interface using SocketCAN"""
         import socket
-        import struct
         
         # Create CAN socket
         self.can_socket = socket.socket(socket.PF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
@@ -334,7 +453,7 @@ class VescMonitor:
     def detect_motor_rl(self):
         """Detect motor resistance and inductance"""
         vesc_lib.vesc_detect_motor_r_l(self.vesc_id)
-        time.sleep(2.0)  # Detection takes time
+        time.sleep(20.0)  # Detection takes time
         return self.latest_motor_rl
     
     def print_status(self):
@@ -425,7 +544,7 @@ def main():
         monitor = VescMonitor(args.interface, args.id)
         
         if args.detect_motor:
-            print("Detecting motor R/L parameters...")
+            print("Detecting motor R/L parameters (20 seconds)...")
             result = monitor.detect_motor_rl()
             if result:
                 print(f"Motor R/L Detection Results:")
@@ -444,4 +563,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main() 
+    main()
