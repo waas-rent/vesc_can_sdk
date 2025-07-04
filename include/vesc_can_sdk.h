@@ -435,14 +435,6 @@ void vesc_detect_motor_flux_linkage(uint8_t controller_id, float current, float 
  */
 void vesc_can_update_baud_all(uint16_t kbits, uint16_t delay_msec);
 
-/**
- * Set nunchuk/joystick data
- * 
- * @param controller_id VESC controller ID (0-255)
- * @param data Pointer to chuck data structure
- */
-void vesc_set_chuck_data(uint8_t controller_id, vesc_chuck_data_t *data);
-
 // ============================================================================
 // Status Functions
 // ============================================================================

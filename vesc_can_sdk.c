@@ -701,7 +701,7 @@ void vesc_set_handbrake(uint8_t controller_id, float current) {
         }
     }
     
-    uint32_t can_id = controller_id | ((uint32_t)CAN_PACKET_SET_HANDBRAKE << 8);
+    uint32_t can_id = controller_id | ((uint32_t)CAN_PACKET_SET_CURRENT_HANDBRAKE << 8);
     vesc_can_send_packet(can_id, buffer, index);
 }
 
@@ -801,23 +801,6 @@ void vesc_can_update_baud_all(uint16_t kbits, uint16_t delay_msec) {
     vesc_buffer_append_int16(buffer, delay_msec, &index);
     
     uint32_t can_id = 255 | ((uint32_t)CAN_PACKET_UPDATE_BAUD << 8);
-    vesc_can_send_packet(can_id, buffer, index);
-}
-
-void vesc_set_chuck_data(uint8_t controller_id, vesc_chuck_data_t *data) {
-    uint8_t buffer[12];
-    int32_t index = 0;
-    buffer[index++] = data->js_x;
-    buffer[index++] = data->js_y;
-    buffer[index++] = data->bt_c;
-    buffer[index++] = data->bt_z;
-    vesc_buffer_append_int16(buffer, data->acc_x, &index);
-    vesc_buffer_append_int16(buffer, data->acc_y, &index);
-    vesc_buffer_append_int16(buffer, data->acc_z, &index);
-    buffer[index++] = data->rev_has_state ? 1 : 0;
-    buffer[index++] = data->is_rev ? 1 : 0;
-    
-    uint32_t can_id = controller_id | ((uint32_t)CAN_PACKET_SET_CHUCK_DATA << 8);
     vesc_can_send_packet(can_id, buffer, index);
 }
 
