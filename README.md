@@ -2,6 +2,12 @@
 
 A pure C SDK for communicating with VESC controllers over CAN bus. This SDK provides a simple interface to send commands and receive responses from VESC devices without requiring any special libraries beyond a user-provided CAN send function.
 
+Use cases for this SDK include but are not limited to
+
+- Custom Firmware that wants to control a VESC controller such as VESC EDU, VESC Express, Maxim or Flipsky
+- Accessing VESC information when not being able to use VESC tool
+- General integration into other software
+
 VESC is a registered trademark of Benjamin Vedder. Read the [trademark policies](https://vesc-project.com/trademark_policies) for more information.
 
 ## Compatibility
