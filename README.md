@@ -12,7 +12,11 @@ VESC is a registered trademark of Benjamin Vedder. Read the [trademark policies]
 
 ## Compatibility
 
-Compatible with VESC firmware version 6.06 (see https://github.com/vedderb/bldc)
+Compatible with VESC firmware version 6.06 (see https://github.com/vedderb/bldc). It might be compatible with any 6.x but this has not been tested.
+
+## Liability
+
+Using this SDK may result in hardware damage or unsafe operation if used improperly. The authors are not responsible for any damage or injury resulting from use of this SDK. Use at your own risk. The commands that you can send using this SDK can cause harm if you do not know what you are doing.
 
 ## Features
 
