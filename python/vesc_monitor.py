@@ -35,6 +35,20 @@ from typing import Dict, Any, Optional
 import ctypes
 from ctypes import cdll, c_bool, c_uint8, c_uint32, c_float, c_int32, c_char, c_int16, c_uint16, c_uint64
 import struct
+from datetime import datetime
+import os
+
+# Try to import python-can
+try:
+    import can
+except ImportError:
+    print("Error: python-can library not found")
+    print("Install it with: pip install python-can")
+    # Don't exit for help command
+    if len(sys.argv) > 1 and sys.argv[1] in ['--help', '-h']:
+        pass
+    else:
+        sys.exit(1)
 
 # Load the VESC CAN SDK library
 try:
@@ -42,7 +56,11 @@ try:
 except OSError:
     print("Error: Could not load libvesc_can_sdk.so")
     print("Make sure to build the SDK first with 'make'")
-    sys.exit(1)
+    # Don't exit for help command
+    if len(sys.argv) > 1 and sys.argv[1] in ['--help', '-h']:
+        vesc_lib = None
+    else:
+        sys.exit(1)
 
 # Define C types for structures
 class VescValues(ctypes.Structure):
@@ -259,19 +277,27 @@ vesc_lib.vesc_debug_get_stats.argtypes = [ctypes.POINTER(VescDebugStats)]
 vesc_lib.vesc_debug_get_stats.restype = c_bool
 
 class VescMonitor:
-    def __init__(self, can_interface: str, vesc_id: int = 1):
+    def __init__(self, can_interface: str, vesc_id: int = 1, enable_logging: bool = False, bustype: str = 'socketcan'):
         self.can_interface = can_interface
         self.vesc_id = vesc_id
+        self.bustype = bustype
         self.running = True
         self.latest_values = {}
         self.latest_fw_version = None
         self.latest_adc_values = None
         self.latest_ppm_values = None
         self.latest_motor_rl = None
+        self.enable_logging = enable_logging
+        self.log_file = None
+        self.session_start_time = datetime.now()
         
         # Set up signal handler
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+        
+        # Initialize logging if enabled
+        if self.enable_logging:
+            self._init_logging()
         
         # Initialize CAN interface
         self._init_can()
@@ -287,31 +313,63 @@ class VescMonitor:
     def _signal_handler(self, signum, frame):
         print(f"\nReceived signal {signum}, shutting down...")
         self.running = False
+        if self.log_file:
+            self.log_file.close()
+        if hasattr(self, 'can_obj'):
+            self.can_obj.shutdown()
+    
+    def _init_logging(self):
+        """Initialize CAN message logging"""
+        # Create log filename with timestamp
+        timestamp = self.session_start_time.strftime("%Y%m%d_%H%M%S")
+        log_filename = f"vesc_can_log_{timestamp}.csv"
+        
+        # Open log file
+        self.log_file = open(log_filename, 'w')
+        
+        # Write header
+        self.log_file.write("# Logger type: VESC CAN SDK Python Monitor\n")
+        self.log_file.write("# HW rev: VESC CAN SDK\n")
+        self.log_file.write("# FW rev: Python Monitor\n")
+        self.log_file.write(f"# Logger ID: VESC_Monitor_{self.vesc_id}\n")
+        self.log_file.write("# Session No.: 1\n")
+        self.log_file.write("# Split No.: 1\n")
+        self.log_file.write(f"# Time: {self.session_start_time.strftime('%Y%m%dT%H%M%S')}\n")
+        self.log_file.write('# Value separator: ";"\n')
+        self.log_file.write("# Time format: 6\n")
+        self.log_file.write('# Time separator: "."\n')
+        self.log_file.write('# Time separator ms: ","\n')
+        self.log_file.write('# Date separator: "/"\n')
+        self.log_file.write('# Time and date separator: " "\n')
+        self.log_file.write("# Bit-rate: 500000\n")
+        self.log_file.write("# Silent mode: false\n")
+        self.log_file.write("# Cyclic mode: false\n")
+        self.log_file.write("Timestamp;Lost;Type;ID;Length;Data\n")
+        
+        print(f"CAN logging enabled: {log_filename}")
     
     def _init_can(self):
-        """Initialize CAN interface using SocketCAN"""
-        import socket
+        """Initialize CAN interface using python-can"""
+        # Create CAN object
+        self.can_obj = can.Bus(channel=self.can_interface, bustype=self.bustype)
         
-        # Create CAN socket
-        self.can_socket = socket.socket(socket.PF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
-        
-        # Get interface index
-        self.can_socket.bind((self.can_interface,))
-        
-        # Set non-blocking mode
-        self.can_socket.setblocking(False)
-        
-        print(f"CAN interface {self.can_interface} initialized")
+        print(f"CAN interface {self.can_interface} (type: {self.bustype}) initialized")
     
     def _init_vesc_sdk(self):
         """Initialize VESC CAN SDK"""
         # Define CAN send function
         def can_send(id: int, data: bytes, length: int) -> bool:
             try:
-                # Create CAN frame
+                # Create CAN message with extended ID
                 can_id = id | 0x80000000  # Extended frame
-                frame = struct.pack("<I", can_id) + struct.pack("B", length) + data + b'\x00' * (8 - length)
-                self.can_socket.send(frame)
+                # Pad data to 8 bytes if needed
+                padded_data = data + b'\x00' * (8 - length)
+                can_msg = can.Message(arbitration_id=can_id, data=padded_data, is_extended_id=True)
+                self.can_obj.send(can_msg)
+                
+                # Log transmitted message
+                self._log_can_message(id, data, length, is_tx=True)
+                
                 return True
             except Exception as e:
                 print(f"CAN send error: {e}")
@@ -332,6 +390,29 @@ class VescMonitor:
         vesc_lib.vesc_set_response_callback(self.response_callback)
         
         print("VESC CAN SDK initialized")
+    
+    def _log_can_message(self, can_id: int, data: bytes, length: int, is_tx: bool = False):
+        """Log a CAN message to file"""
+        if not self.log_file:
+            return
+        
+        # Get current timestamp
+        now = datetime.now()
+        timestamp = now.strftime("%Y/%m/%d %H.%M.%S,%f")[:-3]  # Format: YYYY/MM/DD HH.MM.SS,mmm
+        
+        # Determine message type (0=RX, 8=TX)
+        msg_type = "8" if is_tx else "0"
+        
+        # Format CAN ID as hex (remove extended frame bit)
+        can_id_hex = f"{can_id & 0x1FFFFFFF:x}"
+        
+        # Format data as hex string
+        data_hex = ''.join([f"{b:02x}" for b in data[:length]])
+        
+        # Write log entry
+        log_line = f"{timestamp};0;{msg_type};{can_id_hex};{length};{data_hex}\n"
+        self.log_file.write(log_line)
+        self.log_file.flush()  # Ensure data is written immediately
     
     def _handle_response(self, controller_id: int, command: int, data: bytes, length: int):
         """Handle VESC response"""
@@ -405,26 +486,25 @@ class VescMonitor:
     
     def _monitor_loop(self):
         """Main monitoring loop"""
-        import socket
-        
         while self.running:
             try:
                 # Read CAN frames
-                frame = self.can_socket.recv(16)
-                if len(frame) == 16:
-                    can_id = struct.unpack("<I", frame[:4])[0]
-                    length = frame[4]
-                    data = frame[5:5+length]
+                msg = self.can_obj.recv(timeout=0.001)
+                if msg:
+                    can_id = msg.arbitration_id
+                    data = msg.data
+                    length = len(data)
+                    
+                    # Log received message
+                    self._log_can_message(can_id, data, length, is_tx=False)
                     
                     # Process frame
                     data_array = (c_uint8 * length)(*data)
                     vesc_lib.vesc_process_can_frame(can_id, data_array, length)
             
-            except socket.error:
+            except can.CanError:
                 # No data available (non-blocking)
                 pass
-            
-            time.sleep(0.001)  # 1ms delay
     
     def get_firmware_version(self):
         """Get firmware version"""
@@ -459,7 +539,9 @@ class VescMonitor:
     def print_status(self):
         """Print current status"""
         print("\n" + "="*60)
-        print(f"VESC Monitor - Interface: {self.can_interface}, ID: {self.vesc_id}")
+        print(f"VESC Monitor - Interface: {self.can_interface} ({self.bustype}), ID: {self.vesc_id}")
+        if self.enable_logging:
+            print(f"CAN Logging: Enabled ({self.log_file.name if self.log_file else 'Unknown'})")
         print("="*60)
         
         # Firmware version
@@ -506,7 +588,9 @@ class VescMonitor:
     
     def run(self):
         """Run the monitor"""
-        print(f"Starting VESC monitor on {self.can_interface} for VESC ID {self.vesc_id}")
+        print(f"Starting VESC monitor on {self.can_interface} ({self.bustype}) for VESC ID {self.vesc_id}")
+        if self.enable_logging:
+            print(f"CAN logging enabled: {self.log_file.name if self.log_file else 'Unknown'}")
         print("Press Ctrl+C to stop")
         
         # Get initial data
@@ -534,14 +618,16 @@ class VescMonitor:
 
 def main():
     parser = argparse.ArgumentParser(description='VESC CAN Monitor')
-    parser.add_argument('interface', help='CAN interface (e.g., can0)')
+    parser.add_argument('interface', help='CAN interface (e.g., can0, vcan0, or full python-can URL like socketcan://can0)')
     parser.add_argument('--id', type=int, default=1, help='VESC controller ID (default: 1)')
     parser.add_argument('--detect-motor', action='store_true', help='Detect motor R/L parameters')
+    parser.add_argument('--log', action='store_true', help='Enable CAN message logging to CSV file')
+    parser.add_argument('--bustype', default='socketcan', help='CAN bus type (default: socketcan, options: socketcan, pcan, vector, etc.)')
     
     args = parser.parse_args()
     
     try:
-        monitor = VescMonitor(args.interface, args.id)
+        monitor = VescMonitor(args.interface, args.id, args.log, args.bustype)
         
         if args.detect_motor:
             print("Detecting motor R/L parameters (20 seconds)...")

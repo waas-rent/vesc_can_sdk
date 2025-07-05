@@ -1,0 +1,1 @@
+python-can[canalystii]>=4.0.0 
