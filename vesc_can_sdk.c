@@ -166,11 +166,16 @@ static const char* vesc_debug_get_command_name(uint8_t command) {
     switch (command) {
         case COMM_FW_VERSION: return "FW_VERSION";
         case COMM_GET_VALUES: return "GET_VALUES";
+        case COMM_GET_MCC_CONFIG: return "GET_MCC_CONFIG";
+        case COMM_REBOOT: return "REBOOT";
         case COMM_DETECT_MOTOR_R_L: return "DETECT_MOTOR_R_L";
         case COMM_DETECT_MOTOR_PARAM: return "DETECT_MOTOR_PARAM";
         case COMM_DETECT_MOTOR_FLUX_LINKAGE: return "DETECT_MOTOR_FLUX_LINKAGE";
         case COMM_GET_DECODED_ADC: return "GET_DECODED_ADC";
         case COMM_GET_DECODED_PPM: return "GET_DECODED_PPM";
+        case COMM_GET_DECODED_CHUK: return "GET_DECODED_CHUK";
+        case COMM_FORWARD_CAN: return "FORWARD_CAN";
+        case COMM_SET_CHUCK_DATA: return "SET_CHUCK_DATA";
         case COMM_CAN_UPDATE_BAUD_ALL: return "CAN_UPDATE_BAUD_ALL";
         default: return "UNKNOWN";
     }
@@ -1079,6 +1084,54 @@ void vesc_get_values(uint8_t controller_id) {
     vesc_send_command(controller_id, buffer, 1);
 }
 
+void vesc_get_mcc_config(uint8_t controller_id) {
+    uint8_t buffer[1];
+    buffer[0] = COMM_GET_MCC_CONFIG;
+
+    // Debug output for command
+    if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
+        const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+        vesc_debug_output("[%s] Command: VESC#%d GET_MCC_CONFIG\n", 
+                         timestamp, controller_id);
+        
+        if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
+            vesc_debug_hex_dump("  Command Data: ", buffer, 1);
+        }
+        
+        // Update statistics
+        if (debug_state.config.enable_statistics) {
+            debug_state.stats.command_count++;
+        }
+    }
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, 1);
+}
+
+void vesc_reboot(uint8_t controller_id) {
+    uint8_t buffer[1];
+    buffer[0] = COMM_REBOOT;
+
+    // Debug output for command
+    if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
+        const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+        vesc_debug_output("[%s] Command: VESC#%d REBOOT\n", 
+                         timestamp, controller_id);
+        
+        if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
+            vesc_debug_hex_dump("  Command Data: ", buffer, 1);
+        }
+        
+        // Update statistics
+        if (debug_state.config.enable_statistics) {
+            debug_state.stats.command_count++;
+        }
+    }
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, 1);
+}
+
 void vesc_get_decoded_adc(uint8_t controller_id) {
     uint8_t buffer[1];
     buffer[0] = COMM_GET_DECODED_ADC;
@@ -1125,6 +1178,74 @@ void vesc_get_decoded_ppm(uint8_t controller_id) {
 
     // Use vesc_send_command to handle CRC and stop byte
     vesc_send_command(controller_id, buffer, 1);
+}
+
+void vesc_get_decoded_chuck(uint8_t controller_id) {
+    uint8_t buffer[1];
+    buffer[0] = COMM_GET_DECODED_CHUK;
+
+    // Debug output for command
+    if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
+        const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+        vesc_debug_output("[%s] Command: VESC#%d GET_DECODED_CHUK\n", 
+                         timestamp, controller_id);
+        
+        if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
+            vesc_debug_hex_dump("  Command Data: ", buffer, 1);
+        }
+        
+        // Update statistics
+        if (debug_state.config.enable_statistics) {
+            debug_state.stats.command_count++;
+        }
+    }
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, 1);
+}
+
+void vesc_set_chuck_data(uint8_t controller_id, const vesc_chuck_data_t *chuck_data) {
+    if (!chuck_data) {
+        printf("vesc_set_chuck_data: chuck_data is NULL\n");
+        return;
+    }
+    
+    uint8_t buffer[13];
+    int32_t index = 0;
+    buffer[index++] = COMM_SET_CHUCK_DATA;
+    buffer[index++] = chuck_data->js_x;
+    buffer[index++] = chuck_data->js_y;
+    buffer[index++] = chuck_data->bt_c;
+    buffer[index++] = chuck_data->bt_z;
+    vesc_buffer_append_int16(buffer, chuck_data->acc_x, &index);
+    vesc_buffer_append_int16(buffer, chuck_data->acc_y, &index);
+    vesc_buffer_append_int16(buffer, chuck_data->acc_z, &index);
+    buffer[index++] = chuck_data->rev_has_state ? 1 : 0;
+    buffer[index++] = chuck_data->is_rev ? 1 : 0;
+
+    // Debug output for command
+    if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
+        const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+        vesc_debug_output("[%s] Command: VESC#%d SET_CHUCK_DATA (js_x=%d, js_y=%d, bt_c=%d, bt_z=%d, acc_x=%d, acc_y=%d, acc_z=%d, rev_has_state=%s, is_rev=%s)\n", 
+                         timestamp, controller_id, 
+                         chuck_data->js_x, chuck_data->js_y, 
+                         chuck_data->bt_c, chuck_data->bt_z,
+                         chuck_data->acc_x, chuck_data->acc_y, chuck_data->acc_z,
+                         chuck_data->rev_has_state ? "true" : "false",
+                         chuck_data->is_rev ? "true" : "false");
+        
+        if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
+            vesc_debug_hex_dump("  Command Data: ", buffer, index);
+        }
+        
+        // Update statistics
+        if (debug_state.config.enable_statistics) {
+            debug_state.stats.command_count++;
+        }
+    }
+
+    // Use vesc_send_command to handle CRC and stop byte
+    vesc_send_command(controller_id, buffer, index);
 }
 
 // ============================================================================
@@ -1212,28 +1333,46 @@ bool vesc_parse_flux_linkage_response(uint8_t *data, uint8_t len, vesc_flux_link
 }
 
 bool vesc_parse_adc_values(uint8_t *data, uint8_t len, vesc_adc_values_t *values) {
-    if (!data || !values || len < 8) {
+    if (!data || !values || len < 16) {
+        printf("vesc_parse_adc_values: data is NULL or values is NULL or len is less than 16\n");
         return false;
     }
     
     int32_t index = 1;
-    values->adc1 = vesc_buffer_get_float16(data, 1e3f, &index);
-    values->adc2 = vesc_buffer_get_float16(data, 1e3f, &index);
-    values->adc3 = vesc_buffer_get_float16(data, 1e3f, &index);
-    values->v_in = vesc_buffer_get_float16(data, 1e1f, &index);
+    // Parse int32 values with 1e6 scaling to match the filling code
+    values->adc1 = (float)vesc_buffer_get_int32(data, &index) / 1000000.0f;
+    values->adc2 = (float)vesc_buffer_get_int32(data, &index) / 1000000.0f;
+    values->adc3 = (float)vesc_buffer_get_int32(data, &index) / 1000000.0f;
+    values->v_in = (float)vesc_buffer_get_int32(data, &index) / 1000000.0f;
     values->valid = true;
     
     return true;
 }
 
 bool vesc_parse_ppm_values(uint8_t *data, uint8_t len, vesc_ppm_values_t *values) {
-    if (!data || !values || len < 4) {
+    if (!data || !values || len < 8) {
+        printf("vesc_parse_ppm_values: data is NULL or values is NULL or len is less than 8\n");
         return false;
     }
     
     int32_t index = 1;
-    values->ppm = vesc_buffer_get_float16(data, 1e3f, &index);
-    values->pulse_len = vesc_buffer_get_float16(data, 1e1f, &index);
+    // Parse int32 values with 1e6 scaling to match the filling code
+    values->ppm = (float)vesc_buffer_get_int32(data, &index) / 1000000.0f;
+    values->pulse_len = (float)vesc_buffer_get_int32(data, &index) / 1000000.0f;
+    values->valid = true;
+    
+    return true;
+}
+
+bool vesc_parse_chuck_values(uint8_t *data, uint8_t len, vesc_chuck_values_t *values) {
+    if (!data || !values || len < 5) {
+        printf("vesc_parse_chuck_values: data is NULL or values is NULL or len is less than 5\n");
+        return false;
+    }
+    
+    int32_t index = 1;
+    // Parse int32 value with 1e6 scaling to match the filling code
+    values->js_y = (float)vesc_buffer_get_int32(data, &index) / 1000000.0f;
     values->valid = true;
     
     return true;

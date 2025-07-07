@@ -85,12 +85,16 @@ typedef struct {
 #define COMM_FW_VERSION            0
 #define COMM_GET_VALUES            4
 #define COMM_GET_MCC_CONFIG        14
+#define COMM_REBOOT                29
 #define COMM_GET_VALUES_SETUP      47
 #define COMM_DETECT_MOTOR_R_L      25
 #define COMM_DETECT_MOTOR_PARAM    26
 #define COMM_DETECT_MOTOR_FLUX_LINKAGE 27
-#define COMM_GET_DECODED_ADC       30
+#define COMM_GET_DECODED_ADC       32
 #define COMM_GET_DECODED_PPM       31
+#define COMM_GET_DECODED_CHUK      33
+#define COMM_FORWARD_CAN           34
+#define COMM_SET_CHUCK_DATA        35
 #define COMM_CAN_UPDATE_BAUD_ALL   158
 
 // ============================================================================
@@ -227,6 +231,11 @@ typedef struct {
     float pulse_len;          // Pulse length (μs)
     bool valid;               // Response validity
 } vesc_ppm_values_t;
+
+typedef struct {
+    float js_y;               // Joystick Y value (0.0-1.0)
+    bool valid;               // Response validity
+} vesc_chuck_values_t;
 
 typedef struct {
     uint8_t major;            // Major version
@@ -473,6 +482,13 @@ void vesc_get_values(uint8_t controller_id);
 void vesc_get_mcc_config(uint8_t controller_id);
 
 /**
+ * Reboot VESC controller
+ * 
+ * @param controller_id VESC controller ID (0-255)
+ */
+void vesc_reboot(uint8_t controller_id);
+
+/**
  * Get decoded ADC values
  * 
  * @param controller_id VESC controller ID (0-255)
@@ -485,6 +501,21 @@ void vesc_get_decoded_adc(uint8_t controller_id);
  * @param controller_id VESC controller ID (0-255)
  */
 void vesc_get_decoded_ppm(uint8_t controller_id);
+
+/**
+ * Get decoded chuck data
+ * 
+ * @param controller_id VESC controller ID (0-255)
+ */
+void vesc_get_decoded_chuck(uint8_t controller_id);
+
+/**
+ * Set chuck data
+ * 
+ * @param controller_id VESC controller ID (0-255)
+ * @param chuck_data Pointer to chuck data structure
+ */
+void vesc_set_chuck_data(uint8_t controller_id, const vesc_chuck_data_t *chuck_data);
 
 /**
  * Get firmware version
@@ -556,6 +587,16 @@ bool vesc_parse_adc_values(uint8_t *data, uint8_t len, vesc_adc_values_t *values
  * @return true on success, false on failure
  */
 bool vesc_parse_ppm_values(uint8_t *data, uint8_t len, vesc_ppm_values_t *values);
+
+/**
+ * Parse chuck values response
+ * 
+ * @param data Response data
+ * @param len Data length
+ * @param values Pointer to chuck values structure
+ * @return true on success, false on failure
+ */
+bool vesc_parse_chuck_values(uint8_t *data, uint8_t len, vesc_chuck_values_t *values);
 
 /**
  * Parse firmware version response
