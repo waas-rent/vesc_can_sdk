@@ -5,7 +5,7 @@ A pure C SDK for communicating with VESC controllers over CAN bus. This SDK prov
 Use cases for this SDK include but are not limited to
 
 - Custom Firmware that wants to control a VESC controller such as VESC EDU, VESC Express, Maxim or Flipsky
-- Accessing VESC information when not being able to use VESC tool
+- Accessing VESC information when not being able to use VESC tool (see Python shell)
 - General integration into other software
 
 VESC is a registered trademark of Benjamin Vedder. Read the [trademark policies](https://vesc-project.com/trademark_policies) for more information.
@@ -24,7 +24,7 @@ Using this SDK may result in hardware damage or unsafe operation if used imprope
 - **Simple interface** - Just provide a CAN send function
 - **Comprehensive command support** - Major VESC commands and packets implemented
 - **Response parsing** - Support for parsing VESC responses
-- **Python integration** - Python monitoring tools included
+- **Python integration** - Python interactive shell included
 - **Zephyr 3.x and 4.x support** - Works seamlessly as a Zephyr module, see README.zephyr.md 
 
 ## Supported Commands
@@ -48,7 +48,12 @@ Using this SDK may result in hardware damage or unsafe operation if used imprope
 - `vesc_get_values()` - Get motor status values
 - `vesc_get_decoded_adc()` - Get decoded ADC values
 - `vesc_get_decoded_ppm()` - Get decoded PPM values
+- `vesc_get_decoded_chuck()` - Get decoded chuck (nunchuk) data
 - `vesc_get_fw_version()` - Get firmware version
+- `vesc_get_mcc_config()` - Get MCC configuration
+
+### Chuck (Nunchuk) Commands
+- `vesc_set_chuck_data()` - Set chuck (nunchuk) data
 
 ### Status Message Parsing
 The SDK automatically handles VESC CAN status messages and provides parsing functions for:
@@ -63,8 +68,11 @@ The SDK automatically handles VESC CAN status messages and provides parsing func
 - `vesc_debug_configure()` - Configure debug output
 - `vesc_debug_enable()` - Enable debug output
 - `vesc_debug_disable()` - Disable debug output
+- `vesc_debug_set_output_func()` - Set custom debug output function
 - `vesc_debug_get_stats()` - Get debug statistics
 - `vesc_debug_reset_stats()` - Reset debug statistics
+- `vesc_debug_print_stats()` - Print debug statistics
+- `vesc_debug_print_buffer_state()` - Print buffer state
 
 ## Quick Start
 
@@ -87,7 +95,7 @@ bool my_can_send(uint32_t id, uint8_t *data, uint8_t len) {
 ### 3. Initialize the SDK
 
 ```c
-vesc_can_init(my_can_send, 1);  // Initialize with receiver controller ID 1
+vesc_can_init(my_can_send, 1, 42);  // Initialize with receiver controller ID 1 and sender ID 42
 ```
 
 ### 4. Set Sender Controller ID (for Buffer Protocol)
@@ -131,10 +139,12 @@ vesc_set_response_callback(handle_vesc_response);
 
 ### Initialization and Configuration
 
-#### `vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t receiver_controller_id)`
+#### `vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t receiver_controller_id, uint8_t sender_id)`
 Initialize the VESC CAN SDK.
 - `can_send_func`: Function pointer to CAN send implementation
 - `receiver_controller_id`: Receiver controller ID for receiving frames (can be changed later)
+- `sender_id`: Sender controller ID for buffer protocol commands
+- **Returns**: `true` on success, `false` on failure
 
 #### `vesc_set_controller_id(uint8_t receiver_controller_id)`
 Set the receiver controller ID for receiving frames.
@@ -230,6 +240,20 @@ Get firmware version.
 - `controller_id`: VESC controller ID (0-255)
 - **Response**: `vesc_fw_version_t` structure
 
+#### `vesc_get_decoded_chuck(uint8_t controller_id)`
+Get decoded chuck (nunchuk) data.
+- `controller_id`: VESC controller ID (0-255)
+- **Response**: `vesc_chuck_values_t` structure
+
+#### `vesc_set_chuck_data(uint8_t controller_id, const vesc_chuck_data_t *chuck_data)`
+Set chuck (nunchuk) data.
+- `controller_id`: VESC controller ID (0-255)
+- `chuck_data`: Pointer to chuck data structure
+
+#### `vesc_get_mcc_config(uint8_t controller_id)`
+Get MCC configuration.
+- `controller_id`: VESC controller ID (0-255)
+
 ### SDK Initialization and Control
 
 #### `vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t controller_id)`
@@ -277,6 +301,85 @@ Reset debug statistics.
 
 #### `vesc_debug_print_stats(void)`
 Print debug statistics to console.
+
+#### `vesc_debug_set_output_func(vesc_debug_output_func_t output_func)`
+Set custom debug output function.
+- `output_func`: Custom output function (NULL = printf)
+
+#### `vesc_debug_print_buffer_state(void)`
+Print buffer state to console.
+
+## Debug Configuration
+
+### Debug Levels
+- `VESC_DEBUG_NONE` (0) - No debug output
+- `VESC_DEBUG_BASIC` (1) - Basic debug information
+- `VESC_DEBUG_DETAILED` (2) - Detailed debug information
+- `VESC_DEBUG_VERBOSE` (3) - Verbose debug information
+
+### Debug Categories (bit flags)
+- `VESC_DEBUG_CAN` (0x0001) - CAN communication
+- `VESC_DEBUG_COMMANDS` (0x0002) - Command sending
+- `VESC_DEBUG_RESPONSES` (0x0004) - Response parsing
+- `VESC_DEBUG_BUFFERS` (0x0008) - Buffer management
+- `VESC_DEBUG_ERRORS` (0x0010) - Error conditions
+- `VESC_DEBUG_PERFORMANCE` (0x0020) - Performance metrics
+- `VESC_DEBUG_ALL` (0x003F) - All categories
+
+### `vesc_debug_config_t`
+```c
+typedef struct {
+    uint8_t level;                    // Debug level (0-3)
+    uint16_t categories;              // Enabled categories (bit flags)
+    vesc_debug_output_func_t output_func; // Custom output function (NULL = printf)
+    bool enable_timestamps;           // Include timestamps in output
+    bool enable_statistics;           // Collect debug statistics
+} vesc_debug_config_t;
+```
+
+### `vesc_debug_stats_t`
+```c
+typedef struct {
+    uint32_t can_tx_count;           // CAN transmit count
+    uint32_t can_rx_count;           // CAN receive count
+    uint32_t command_count;          // Commands sent
+    uint32_t response_count;         // Responses received
+    uint32_t error_count;            // Error count
+    uint32_t crc_error_count;        // CRC error count
+    uint32_t buffer_overflow_count;  // Buffer overflow count
+    uint64_t total_tx_bytes;         // Total bytes transmitted
+    uint64_t total_rx_bytes;         // Total bytes received
+} vesc_debug_stats_t;
+```
+
+## Command and Packet Definitions
+
+### Commands
+- `COMM_FW_VERSION` (0) - Get firmware version
+- `COMM_GET_VALUES` (4) - Get motor values
+- `COMM_GET_MCC_CONFIG` (14) - Get MCC configuration
+- `COMM_DETECT_MOTOR_R_L` (25) - Detect motor R/L
+- `COMM_DETECT_MOTOR_PARAM` (26) - Detect motor parameters
+- `COMM_DETECT_MOTOR_FLUX_LINKAGE` (27) - Detect motor flux linkage
+- `COMM_REBOOT` (29) - Reboot VESC
+- `COMM_GET_DECODED_PPM` (31) - Get decoded PPM
+- `COMM_GET_DECODED_ADC` (32) - Get decoded ADC
+- `COMM_GET_DECODED_CHUK` (33) - Get decoded chuck
+- `COMM_FORWARD_CAN` (34) - Forward CAN message
+- `COMM_SET_CHUCK_DATA` (35) - Set chuck data
+- `COMM_CAN_UPDATE_BAUD_ALL` (158) - Update CAN baud rate
+
+### Packets
+- `CAN_PACKET_SET_DUTY` (0) - Set duty cycle
+- `CAN_PACKET_SET_CURRENT` (1) - Set current
+- `CAN_PACKET_SET_CURRENT_BRAKE` (2) - Set brake current
+- `CAN_PACKET_SET_RPM` (3) - Set RPM
+- `CAN_PACKET_STATUS` (9) - Status message 1
+- `CAN_PACKET_STATUS_2` (14) - Status message 2
+- `CAN_PACKET_STATUS_3` (15) - Status message 3
+- `CAN_PACKET_STATUS_4` (16) - Status message 4
+- `CAN_PACKET_STATUS_5` (27) - Status message 5
+- `CAN_PACKET_STATUS_6` (58) - Status message 6
 
 ## Response Structures
 
@@ -357,6 +460,29 @@ typedef struct {
     float pulse_len;          // Pulse length (μs)
     bool valid;               // Response validity
 } vesc_ppm_values_t;
+```
+
+### `vesc_chuck_values_t`
+```c
+typedef struct {
+    float js_y;               // Joystick Y value (0.0-1.0)
+    bool valid;               // Response validity
+} vesc_chuck_values_t;
+```
+
+### `vesc_chuck_data_t`
+```c
+typedef struct {
+    uint8_t js_x;             // Joystick X (0-255)
+    uint8_t js_y;             // Joystick Y (0-255)
+    uint8_t bt_c;             // Button C (0/1)
+    uint8_t bt_z;             // Button Z (0/1)
+    int16_t acc_x;            // Accelerometer X
+    int16_t acc_y;            // Accelerometer Y
+    int16_t acc_z;            // Accelerometer Z
+    bool rev_has_state;       // Reverse has state
+    bool is_rev;              // Is reverse
+} vesc_chuck_data_t;
 ```
 
 ### `vesc_fw_version_t`
@@ -443,12 +569,113 @@ typedef struct {
 } vesc_status_msg_6_t;
 ```
 
-### Python Monitoring Script
+### Python Interactive Shell
 
-Use the included `monitor_vesc.py` script to monitor VESC status:
+Use the included `vesc_shell.py` script for interactive communication with VESC controllers:
 
 ```bash
-python monitor_vesc.py --can-interface can0 --controller-id 1
+python vesc_shell.py can0 --id 118 --bustype canalystii --baudrate 1000000
+```
+
+The shell provides an interactive command-line interface for:
+- Getting motor values (temperature, current, RPM, voltage, etc.)
+- Reading ADC and PPM values
+- Getting firmware version information
+- Detecting motor parameters
+- Sending raw CAN messages
+- Listening for VESC status messages
+- Logging CAN traffic to files
+
+For more information about available commands, run `help` within the shell.
+
+#### Shell Usage Example
+
+Here's a typical session using the VESC shell using Canalyst II CAN logger as input:
+
+```bash
+# Start the shell with a VESC on CAN interface can0, controller ID 1
+$ python vesc_shell.py can0 --id 118 --bustype canalystii --baudrate 1000000
+
+VESC CAN Shell. Type help or ? to list commands.
+vesc> help
+
+Available commands:
+  values          - Get motor values (temperature, current, RPM, etc.)
+  adc             - Get ADC values
+  ppm             - Get PPM values
+  chuck           - Get decoded chuck (nunchuk) data
+  setchuck        - Set chuck (nunchuk) data
+  motor_rl        - Detect motor resistance and inductance
+  fw_version      - Get firmware version
+  reboot          - Reboot the VESC controller
+  raw_can         - Send raw CAN message
+  listen          - Listen for VESC status messages (1-6, with optional filtering)
+  verbose         - Toggle verbose logging of raw CAN messages
+  logging         - Toggle CAN message logging to file
+  quit/exit       - Exit the shell
+
+vesc> fw_version
+Getting firmware version...
+VESC 6.06 VESC_6.6 with UUID: 1234567890abcdef123456
+
+vesc> values
+Getting motor values...
+
+Motor Status:
+  Temperature FET: 45.2°C
+  Temperature Motor: 38.1°C
+  Current Motor: 2.34A
+  Current Input: 2.45A
+  Duty Cycle: 15.2%
+  RPM: 1250
+  Input Voltage: 24.1V
+  Consumed Ah: 1.23Ah
+  Consumed Wh: 29.6Wh
+  Fault Code: 0
+
+vesc> adc
+Getting ADC values...
+
+ADC Values:
+  ADC1: 0.523
+  ADC2: 0.187
+  ADC3: 0.000
+  Input Voltage: 24.1V
+
+vesc> listen 1 4
+Listening for commands: 9(STATUS_1), 16(STATUS_4)... Press Ctrl+C to stop
+[Status1] Controller: 1, RPM: 1250, Current: 2.34A, Duty: 15.2%
+[Status4] Controller: 1, Temp_FET: 45.2°C, Temp_Motor: 38.1°C, Current_In: 2.45A, PID_Pos: 0.00
+^C
+Stopped listening for status messages
+
+vesc> verbose
+Verbose logging enabled
+
+vesc> logging
+CAN logging enabled: vesc_can_log_20250115_143022.csv
+
+vesc> quit
+Exiting...
+```
+
+The shell supports various CAN interfaces and configurations:
+
+```bash
+# Use different CAN interface
+python vesc_shell.py can1 --id 2
+
+# Use different bus type (PCAN)
+python vesc_shell.py PCAN_USBBUS1 --bustype pcan --id 1
+
+# Use CANalyst-II device
+python vesc_shell.py 0 --bustype canalystii --id 1
+
+# Custom baudrate
+python vesc_shell.py can0 --id 1 --baudrate 250000
+
+# Custom sender ID
+python vesc_shell.py can0 --id 1 --sender-id 100
 ```
 
 ## Building
@@ -458,10 +685,6 @@ python monitor_vesc.py --can-interface can0 --controller-id 1
 cd vesc_can_sdk
 make
 ```
-
-## Examples
-
-See the `examples/` directory for complete working examples:
 
 ## Usage Examples
 
@@ -569,6 +792,13 @@ Parse COMM_FW_VERSION response.
 - `data`: Response data
 - `len`: Data length
 - `version`: Pointer to firmware version structure
+- **Returns**: `true` on success, `false` on failure
+
+#### `vesc_parse_chuck_values(uint8_t *data, uint8_t len, vesc_chuck_values_t *values)`
+Parse COMM_GET_DECODED_CHUK response.
+- `data`: Response data
+- `len`: Data length
+- `values`: Pointer to chuck values structure
 - **Returns**: `true` on success, `false` on failure
 
 ## Status Message Parsing Functions

@@ -770,10 +770,9 @@ class VescShell(cmd.Cmd):
             print("  fw_version      - Get firmware version")
             print("  reboot          - Reboot the VESC controller")
             print("  raw_can         - Send raw CAN message")
-            print("  listen          - Listen for VESC messages (with optional filtering)")
-            print("  verbose         - Toggle verbose logging")
+            print("  listen          - Listen for VESC status messages (1-6, with optional filtering)")
+            print("  verbose         - Toggle verbose logging of raw CAN messages")
             print("  logging         - Toggle CAN message logging to file")
-            print("  status          - Show current status")
             print("  quit/exit       - Exit the shell")
             print("\nType 'help <command>' for detailed help on a specific command.")
     
@@ -1112,131 +1111,7 @@ class VescShell(cmd.Cmd):
             except Exception as e:
                 print(f"Error enabling logging: {e}")
     
-    def help_status(self):
-        """Help for status command"""
-        print("status - Show current status")
-        print("  Shows current VESC status including firmware version, motor values,")
-        print("  ADC values, PPM values, and motor R/L if available.")
-        print("  Usage: status")
-    
-    def do_status(self, arg):
-        """Show current status"""
-        if arg:
-            print("Error: status command takes no arguments")
-            return
-        
-        print("\n" + "="*60)
-        print(f"VESC Shell - Interface: {self.can_interface} ({self.bustype}, {self.baudrate} bps)")
-        print(f"VESC ID: {self.vesc_id}, Sender ID: {self.sender_id}")
-        print(f"Verbose: {'Enabled' if self.verbose else 'Disabled'}")
-        print(f"Logging: {'Enabled' if self.logging_enabled else 'Disabled'}")
-        if self.logging_enabled and self.log_file:
-            print(f"Log file: {self.log_file.name}")
-        print("="*60)
-        
-        # Firmware version
-        if self.latest_fw_version:
-            print(f"Firmware: {self.latest_fw_version['major']}.{self.latest_fw_version['minor']}")
-            print(f"Hardware: {self.latest_fw_version['hw_name']}")
-            print(f"Hardware Type: {self.latest_fw_version['hw_type']}")
-        else:
-            print("Firmware: Not available")
-        
-        # Motor values
-        if self.latest_values:
-            print(f"\nMotor Status:")
-            print(f"  Temperature FET: {self.latest_values['temp_fet']:.1f}°C")
-            print(f"  Temperature Motor: {self.latest_values['temp_motor']:.1f}°C")
-            print(f"  Current Motor: {self.latest_values['current_motor']:.2f}A")
-            print(f"  Current Input: {self.latest_values['current_in']:.2f}A")
-            print(f"  Duty Cycle: {self.latest_values['duty_cycle']*100:.1f}%")
-            print(f"  RPM: {self.latest_values['rpm']:.0f}")
-            print(f"  Input Voltage: {self.latest_values['v_in']:.1f}V")
-            print(f"  Consumed Ah: {self.latest_values['amp_hours']:.2f}Ah")
-            print(f"  Consumed Wh: {self.latest_values['watt_hours']:.2f}Wh")
-            print(f"  Fault Code: {self.latest_values['fault_code']}")
-        else:
-            print("\nMotor Status: Not available")
-        
-        # ADC values
-        if self.latest_adc_values:
-            print(f"\nADC Values:")
-            print(f"  ADC1: {self.latest_adc_values['adc1']:.3f}")
-            print(f"  ADC2: {self.latest_adc_values['adc2']:.3f}")
-            print(f"  ADC3: {self.latest_adc_values['adc3']:.3f}")
-            print(f"  Input Voltage: {self.latest_adc_values['v_in']:.1f}V")
-        else:
-            print("\nADC Values: Not available")
-        
-        # PPM values
-        if self.latest_ppm_values:
-            print(f"\nPPM Values:")
-            print(f"  PPM: {self.latest_ppm_values['ppm']:.3f}")
-            print(f"  Pulse Length: {self.latest_ppm_values['pulse_len']:.1f}μs")
-        else:
-            print("\nPPM Values: Not available")
-        
-        # Chuck values
-        if hasattr(self, 'latest_chuck_values') and self.latest_chuck_values:
-            print(f"\nChuck Values:")
-            print(f"  Joystick Y: {self.latest_chuck_values['js_y']:.6f}")
-        else:
-            print("\nChuck Values: Not available")
-        
-        # Motor R/L
-        if self.latest_motor_rl:
-            print(f"\nMotor R/L Detection:")
-            print(f"  Resistance: {self.latest_motor_rl['resistance']:.6f}Ω")
-            print(f"  Inductance: {self.latest_motor_rl['inductance']:.8f}H")
-            print(f"  Ld-Lq Difference: {self.latest_motor_rl['ld_lq_diff']:.8f}H")
-        else:
-            print("\nMotor R/L: Not available")
-        
-        # Status messages
-        print(f"\nStatus Messages:")
-        if self.latest_status_msg1:
-            print(f"  Status1: Controller: {self.latest_status_msg1['controller_id']}, "
-                  f"RPM: {self.latest_status_msg1['rpm']:.0f}, Current: {self.latest_status_msg1['current']:.2f}A, "
-                  f"Duty: {self.latest_status_msg1['duty']*100:.1f}%")
-        else:
-            print("  Status1: Not available")
-        
-        if self.latest_status_msg2:
-            print(f"  Status2: Controller: {self.latest_status_msg2['controller_id']}, "
-                  f"Ah: {self.latest_status_msg2['amp_hours']:.2f}, Ah_charged: {self.latest_status_msg2['amp_hours_charged']:.2f}")
-        else:
-            print("  Status2: Not available")
-        
-        if self.latest_status_msg3:
-            print(f"  Status3: Controller: {self.latest_status_msg3['controller_id']}, "
-                  f"Wh: {self.latest_status_msg3['watt_hours']:.2f}, Wh_charged: {self.latest_status_msg3['watt_hours_charged']:.2f}")
-        else:
-            print("  Status3: Not available")
-        
-        if self.latest_status_msg4:
-            print(f"  Status4: Controller: {self.latest_status_msg4['controller_id']}, "
-                  f"Temp_FET: {self.latest_status_msg4['temp_fet']:.1f}°C, "
-                  f"Temp_Motor: {self.latest_status_msg4['temp_motor']:.1f}°C, "
-                  f"Current_In: {self.latest_status_msg4['current_in']:.2f}A, "
-                  f"PID_Pos: {self.latest_status_msg4['pid_pos_now']:.2f}")
-        else:
-            print("  Status4: Not available")
-        
-        if self.latest_status_msg5:
-            print(f"  Status5: Controller: {self.latest_status_msg5['controller_id']}, "
-                  f"Tacho: {self.latest_status_msg5['tacho_value']}, "
-                  f"V_in: {self.latest_status_msg5['v_in']:.1f}V")
-        else:
-            print("  Status5: Not available")
-        
-        if self.latest_status_msg6:
-            print(f"  Status6: Controller: {self.latest_status_msg6['controller_id']}, "
-                  f"ADC1: {self.latest_status_msg6['adc_1']:.3f}, ADC2: {self.latest_status_msg6['adc_2']:.3f}, "
-                  f"ADC3: {self.latest_status_msg6['adc_3']:.3f}, PPM: {self.latest_status_msg6['ppm']:.3f}")
-        else:
-            print("  Status6: Not available")
-        
-        print("="*60)
+
     
     def do_quit(self, arg):
         """Exit the shell"""
