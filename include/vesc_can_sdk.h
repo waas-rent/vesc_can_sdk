@@ -29,6 +29,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "vesc_version.h"
 
 #ifdef __cplusplus
 extern "C" {

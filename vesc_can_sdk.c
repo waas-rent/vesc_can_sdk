@@ -25,6 +25,7 @@
 #include "vesc_can_sdk.h"
 #include "vesc_buffer.h"
 #include "vesc_crc.h"
+#include "vesc_version.h"
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
@@ -1616,4 +1617,57 @@ void vesc_debug_print_buffer_state(void) {
         }
     }
     printf("=============================\n\n");
+}
+
+// ============================================================================
+// Version Functions Implementation
+// ============================================================================
+
+// Git information - these will be set by the build system if available
+#ifndef VESC_SDK_GIT_HASH
+#define VESC_SDK_GIT_HASH "unknown"
+#endif
+
+#ifndef VESC_SDK_GIT_BRANCH
+#define VESC_SDK_GIT_BRANCH "unknown"
+#endif
+
+// Static version information structure
+static const vesc_sdk_version_t sdk_version = {
+    .major = VESC_SDK_VERSION_MAJOR,
+    .minor = VESC_SDK_VERSION_MINOR,
+    .patch = VESC_SDK_VERSION_PATCH,
+    .version_number = VESC_SDK_VERSION_NUMBER,
+    .version_string = VESC_SDK_VERSION_STRING,
+    .build_date = VESC_SDK_BUILD_DATE,
+    .build_time = VESC_SDK_BUILD_TIME,
+    .git_hash = VESC_SDK_GIT_HASH,
+    .git_branch = VESC_SDK_GIT_BRANCH
+};
+
+const vesc_sdk_version_t* vesc_sdk_get_version(void) {
+    return &sdk_version;
+}
+
+const char* vesc_sdk_get_version_string(void) {
+    return sdk_version.version_string;
+}
+
+uint32_t vesc_sdk_get_version_number(void) {
+    return sdk_version.version_number;
+}
+
+bool vesc_sdk_version_at_least(uint8_t major, uint8_t minor, uint8_t patch) {
+    uint32_t required_version = (major * 10000) + (minor * 100) + patch;
+    return sdk_version.version_number >= required_version;
+}
+
+void vesc_sdk_print_version(void) {
+    printf("\n=== VESC CAN SDK Version Information ===\n");
+    printf("Version: %s\n", sdk_version.version_string);
+    printf("Build Date: %s\n", sdk_version.build_date);
+    printf("Build Time: %s\n", sdk_version.build_time);
+    printf("Git Hash: %s\n", sdk_version.git_hash);
+    printf("Git Branch: %s\n", sdk_version.git_branch);
+    printf("========================================\n\n");
 }
