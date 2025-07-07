@@ -23,6 +23,7 @@
 # Compiler settings
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99 -O2 -fPIC
+DEBUG_CFLAGS = -Wall -Wextra -std=c99 -g -O0 -fPIC -DDEBUG
 AR = ar
 ARFLAGS = rcs
 
@@ -94,6 +95,22 @@ test: all
 	@echo "Building test example"
 	@$(CC) $(CFLAGS) -I$(INCDIR) -L$(LIBDIR) -lvesc_can_sdk -lm -o test_example examples/basic_control.c
 
+# Build sender ID example
+sender_example: all
+	@echo "Building sender ID example"
+	@$(CC) $(CFLAGS) -I$(INCDIR) -L$(LIBDIR) -lvesc_can_sdk -lm -o sender_example examples/sender_id_example.c
+
+# Debug build
+debug: clean
+	@echo "Building debug version"
+	@mkdir -p $(OBJDIR)
+	@mkdir -p $(LIBDIR)
+	@$(CC) $(DEBUG_CFLAGS) -I$(INCDIR) -c vesc_can_sdk.c -o $(OBJDIR)/vesc_can_sdk.o
+	@$(CC) $(DEBUG_CFLAGS) -I$(INCDIR) -c vesc_buffer.c -o $(OBJDIR)/vesc_buffer.o
+	@$(CC) $(DEBUG_CFLAGS) -I$(INCDIR) -c vesc_crc.c -o $(OBJDIR)/vesc_crc.o
+	@$(AR) $(ARFLAGS) $(LIBDIR)/$(LIBRARY) $(OBJDIR)/*.o
+	@$(CC) -shared -o $(LIBDIR)/$(SHARED_LIBRARY) $(OBJDIR)/*.o
+
 # Show help
 help:
 	@echo "VESC CAN SDK Makefile"
@@ -103,11 +120,11 @@ help:
 	@echo "  clean      - Remove build artifacts"
 	@echo "  install    - Install library and headers to system"
 	@echo "  uninstall  - Remove library and headers from system"
-	@echo "  test       - Build test example"
+	@echo "  debug      - Build debug version of library"
 	@echo "  help       - Show this help message"
 	@echo ""
 	@echo "Build products:"
 	@echo "  $(LIBDIR)/$(LIBRARY)      - Static library"
 	@echo "  $(LIBDIR)/$(SHARED_LIBRARY) - Shared library"
 
-.PHONY: all clean install uninstall test help directories 
+.PHONY: all clean install uninstall test help directories debug
