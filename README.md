@@ -87,10 +87,18 @@ bool my_can_send(uint32_t id, uint8_t *data, uint8_t len) {
 ### 3. Initialize the SDK
 
 ```c
-vesc_can_init(my_can_send);
+vesc_can_init(my_can_send, 1);  // Initialize with receiver controller ID 1
 ```
 
-### 4. Send Commands
+### 4. Set Sender Controller ID (for Buffer Protocol)
+
+```c
+// Set the sender's controller ID to 42 for buffer protocol commands
+// This ensures proper identification in multi-controller setups
+vesc_set_sender_controller_id(42);
+```
+
+### 5. Send Commands
 
 ```c
 // Set motor to 50% duty cycle
@@ -100,7 +108,7 @@ vesc_set_duty(1, 0.5f);
 vesc_get_values(1);
 ```
 
-### 5. Handle Responses
+### 6. Handle Responses
 
 ```c
 void handle_vesc_response(uint8_t controller_id, uint8_t command, uint8_t *data, uint8_t len) {
@@ -120,6 +128,27 @@ vesc_set_response_callback(handle_vesc_response);
 ```
 
 ## Command Reference
+
+### Initialization and Configuration
+
+#### `vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t receiver_controller_id)`
+Initialize the VESC CAN SDK.
+- `can_send_func`: Function pointer to CAN send implementation
+- `receiver_controller_id`: Receiver controller ID for receiving frames (can be changed later)
+
+#### `vesc_set_controller_id(uint8_t receiver_controller_id)`
+Set the receiver controller ID for receiving frames.
+- `receiver_controller_id`: Receiver controller ID to listen for
+
+#### `vesc_set_sender_controller_id(uint8_t sender_controller_id)`
+Set the sender's controller ID for buffer protocol commands.
+- `sender_controller_id`: Controller ID to use as sender ID (typically 42)
+- **Important**: This ensures that when using buffer protocol commands (like `vesc_get_values()`, `vesc_get_fw_version()`, etc.), the VESC will respond with the correct sender ID in the response.
+- **Note**: This is separate from the receiver controller ID. The receiver ID is used in CAN ID fields, while the sender ID is used in the first byte of buffer protocol commands.
+
+#### `vesc_get_sender_controller_id(void)`
+Get the current sender's controller ID.
+- **Returns**: The current sender controller ID
 
 ### Motor Control
 

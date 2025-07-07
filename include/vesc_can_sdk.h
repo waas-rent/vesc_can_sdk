@@ -84,6 +84,8 @@ typedef struct {
 
 #define COMM_FW_VERSION            0
 #define COMM_GET_VALUES            4
+#define COMM_GET_MCC_CONFIG        14
+#define COMM_GET_VALUES_SETUP      47
 #define COMM_DETECT_MOTOR_R_L      25
 #define COMM_DETECT_MOTOR_PARAM    26
 #define COMM_DETECT_MOTOR_FLUX_LINKAGE 27
@@ -319,10 +321,10 @@ typedef void (*vesc_response_callback_t)(uint8_t controller_id, uint8_t command,
  * Initialize the VESC CAN SDK
  * 
  * @param can_send_func Pointer to user's CAN send function
- * @param controller_id VESC controller ID (0-255) to listen for
+ * @param receiver_controller_id Receiver controller ID (0-255) to listen for
  * @return true on success, false on failure
  */
-bool vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t controller_id);
+bool vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t receiver_controller_id, uint8_t sender_id);
 
 /**
  * Set the response callback function
@@ -332,11 +334,28 @@ bool vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t controller_id);
 void vesc_set_response_callback(vesc_response_callback_t callback);
 
 /**
- * Set the controller ID to filter incoming CAN frames
+ * Set the receiver controller ID to filter incoming CAN frames
  * 
- * @param controller_id VESC controller ID (0-255) to listen for
+ * @param receiver_controller_id Receiver controller ID (0-255) to listen for
  */
-void vesc_set_controller_id(uint8_t controller_id);
+void vesc_set_controller_id(uint8_t receiver_controller_id);
+
+/**
+ * Set the sender's controller ID for buffer protocol commands
+ * 
+ * This function sets the controller ID that will be used as the sender ID
+ * in buffer protocol commands (first byte of process command).
+ * 
+ * @param sender_controller_id The controller ID to use as sender ID (typically 42)
+ */
+void vesc_set_sender_controller_id(uint8_t sender_controller_id);
+
+/**
+ * Get the current sender's controller ID
+ * 
+ * @return The current sender controller ID
+ */
+uint8_t vesc_get_sender_controller_id(void);
 
 /**
  * Process received CAN frame
@@ -445,6 +464,13 @@ void vesc_can_update_baud_all(uint16_t kbits, uint16_t delay_msec);
  * @param controller_id VESC controller ID (0-255)
  */
 void vesc_get_values(uint8_t controller_id);
+
+/**
+ * Get MCC config
+ * 
+ * @param controller_id VESC controller ID (0-255)
+ */
+void vesc_get_mcc_config(uint8_t controller_id);
 
 /**
  * Get decoded ADC values
@@ -655,6 +681,7 @@ void vesc_debug_reset_stats(void);
  * Print debug statistics
  */
 void vesc_debug_print_stats(void);
+void vesc_debug_print_buffer_state(void);
 
 #ifdef __cplusplus
 }

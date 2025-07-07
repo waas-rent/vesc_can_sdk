@@ -30,6 +30,12 @@
 #include <time.h>
 #include <stdarg.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <pthread.h>
+#endif
+
 // ============================================================================
 // Internal Constants and Types
 // ============================================================================
@@ -41,14 +47,21 @@ typedef struct {
     uint8_t buffer[VESC_RX_BUFFER_SIZE];
     int32_t offset;
     bool active;
+    uint8_t controller_id;
 } vesc_rx_buffer_t;
 
 typedef struct {
     vesc_can_send_func_t can_send_func;
     vesc_response_callback_t response_callback;
     vesc_rx_buffer_t rx_buffers[VESC_RX_BUFFER_NUM];
-    uint8_t controller_id;
+    uint8_t receiver_controller_id;  // Receiver controller ID (used in CAN ID field)
+    uint8_t sender_id;               // Sender controller ID (used in buffer protocol first byte)
     bool initialized;
+#ifdef _WIN32
+    CRITICAL_SECTION mutex;
+#else
+    pthread_mutex_t mutex;
+#endif
 } vesc_sdk_state_t;
 
 typedef struct {
@@ -233,9 +246,17 @@ static bool vesc_can_send_packet(uint32_t id, uint8_t *data, uint8_t len) {
  */
 static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len) {
     if (len <= 6) {
-        // Short packet - send directly
+        // Buffer command structure is as follows for short buffer:
+        // 0: identifier of sending controller
+        // 1: flag to indicate if a result should be sent (possible values: 0, 1, 2, default is 0)
+        // 2: command such as COMM_GET_VALUES or COMM_FW_VERSION
+        uint8_t short_buffer[8];
+        short_buffer[0] = sdk_state.sender_id;  // Use sender ID for first byte
+        short_buffer[1] = 0;  // Flag to indicate if a result should be sent (possible values: 0, 1, 2, default is 0)
+        memcpy(short_buffer + 2, data, len);
+        
         uint32_t can_id = controller_id | ((uint32_t)CAN_PACKET_PROCESS_SHORT_BUFFER << 8);
-        vesc_can_send_packet(can_id, data, len);
+        vesc_can_send_packet(can_id, short_buffer, len + 1);
     } else {
         // Long packet - fragment
         uint8_t send_buffer[8];
@@ -281,7 +302,8 @@ static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len)
         
         // Send process command
         int32_t index = 0;
-        send_buffer[index++] = sdk_state.controller_id;
+        send_buffer[index++] = sdk_state.sender_id;  // Use sender ID for first byte
+        send_buffer[index++] = 0;  // Flag to indicate if a result should be sent (possible values: 0, 1, 2, default is 0)
         send_buffer[index++] = len >> 8;
         send_buffer[index++] = len & 0xFF;
         uint16_t crc = vesc_crc16(data, len);
@@ -292,8 +314,6 @@ static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len)
         vesc_can_send_packet(can_id, send_buffer, index);
     }
 }
-
-
 
 /**
  * Process received CAN frame
@@ -322,19 +342,52 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
             debug_state.stats.total_rx_bytes += len;
         }
     }
-    
+
     switch (packet_type) {
         case CAN_PACKET_FILL_RX_BUFFER: {
-            if (len < 1) return;
+            if (len < 1) {
+                printf("Buffer underflow: len=%d\n", len);
+                return;
+            }
             uint8_t offset = data[0];
             if (offset < 255) {
                 // Find buffer for this controller
                 int buf_idx = -1;
                 for (int i = 0; i < VESC_RX_BUFFER_NUM; i++) {
-                    if (sdk_state.rx_buffers[i].active && 
-                        sdk_state.rx_buffers[i].buffer[0] == controller_id) {
+                    if (vesc_debug_category_enabled(VESC_DEBUG_BUFFERS)) {
+                        vesc_debug_output("Buffer[%d]: active=%s, controller_id=%d, offset=%d, controller_id_to_use=%d\n", 
+                               i, 
+                               sdk_state.rx_buffers[i].active ? "true" : "false",
+                               sdk_state.rx_buffers[i].controller_id,
+                               sdk_state.rx_buffers[i].offset,
+                               controller_id);
+                    }
+
+                    if (sdk_state.rx_buffers[i].active == true && 
+                        sdk_state.rx_buffers[i].controller_id == controller_id) {
                         buf_idx = i;
                         break;
+                    }
+                }
+                
+                // If no active buffer found for this controller, allocate one
+                if (buf_idx < 0) {
+                    for (int i = 0; i < VESC_RX_BUFFER_NUM; i++) {
+                        if (!sdk_state.rx_buffers[i].active) {
+                            buf_idx = i;
+                            sdk_state.rx_buffers[i].active = true;
+                            sdk_state.rx_buffers[i].controller_id = controller_id;
+                            sdk_state.rx_buffers[i].offset = 0;
+                            
+                            // Debug output for buffer allocation
+                            if (vesc_debug_category_enabled(VESC_DEBUG_BUFFERS)) {
+                                const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+                                vesc_debug_output("[%s] Buffer: VESC#%d allocated buffer[%d]\n", 
+                                                 timestamp, controller_id, i);
+
+                            }
+                            break;
+                        }
                     }
                 }
                 
@@ -347,30 +400,63 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
                         vesc_debug_output("[%s] Buffer: VESC#%d FILL_RX_BUFFER offset=%d, len=%d\n", 
                                          timestamp, controller_id, offset, len - 1);
                     }
-                } else if (vesc_debug_category_enabled(VESC_DEBUG_ERRORS)) {
-                    const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
-                    vesc_debug_output("[%s] Buffer Error: VESC#%d FILL_RX_BUFFER invalid offset=%d or buffer overflow\n", 
-                                     timestamp, controller_id, offset);
-                    
-                    if (debug_state.config.enable_statistics) {
-                        debug_state.stats.buffer_overflow_count++;
-                        debug_state.stats.error_count++;
+                } else {
+                    if (vesc_debug_category_enabled(VESC_DEBUG_ERRORS)) {
+                        const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+                        if (buf_idx < 0) {
+                            vesc_debug_output("[%s] Buffer Error: VESC#%d FILL_RX_BUFFER no free buffer available\n", 
+                                             timestamp, controller_id);
+                        } else {
+                            vesc_debug_output("[%s] Buffer Error: VESC#%d FILL_RX_BUFFER invalid offset=%d, buf_idx=%d, len=%d, rx_buffer_size=%d, rx_buffer_num=%d, buf_is_active=%d, buf_controller_id=%d\n", 
+                                             timestamp, controller_id, offset, buf_idx, len, VESC_RX_BUFFER_SIZE, VESC_RX_BUFFER_NUM, sdk_state.rx_buffers[buf_idx].active, sdk_state.rx_buffers[buf_idx].controller_id);
+                        }
+                        
+                        if (debug_state.config.enable_statistics) {
+                            debug_state.stats.error_count++;
+                        }
+                    } else {
+                        printf("Buffer overflow: offset=%d, len=%d\n", offset, len);
                     }
                 }
+            } else {
+                printf("Buffer overflow: offset=%d, len=%d\n", offset, len);
             }
         } break;
         
         case CAN_PACKET_FILL_RX_BUFFER_LONG: {
-            if (len < 2) return;
+            if (len < 2) {
+                printf("Buffer underflow: len=%d\n", len);
+                return;
+            }
             uint16_t offset = (data[0] << 8) | data[1];
             if (offset >= 255 && offset + len - 2 < VESC_RX_BUFFER_SIZE) {
                 // Find buffer for this controller
                 int buf_idx = -1;
                 for (int i = 0; i < VESC_RX_BUFFER_NUM; i++) {
                     if (sdk_state.rx_buffers[i].active && 
-                        sdk_state.rx_buffers[i].buffer[0] == controller_id) {
+                        sdk_state.rx_buffers[i].controller_id == controller_id) {
                         buf_idx = i;
                         break;
+                    }
+                }
+                
+                // If no active buffer found for this controller, allocate one
+                if (buf_idx < 0) {
+                    for (int i = 0; i < VESC_RX_BUFFER_NUM; i++) {
+                        if (!sdk_state.rx_buffers[i].active) {
+                            buf_idx = i;
+                            sdk_state.rx_buffers[i].active = true;
+                            sdk_state.rx_buffers[i].controller_id = controller_id;
+                            sdk_state.rx_buffers[i].offset = 0;
+                            
+                            // Debug output for buffer allocation
+                            if (vesc_debug_category_enabled(VESC_DEBUG_BUFFERS)) {
+                                const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+                                vesc_debug_output("[%s] Buffer: VESC#%d allocated buffer[%d] for FILL_RX_BUFFER_LONG\n", 
+                                                 timestamp, controller_id, i);
+                            }
+                            break;
+                        }
                     }
                 }
                 
@@ -385,45 +471,101 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
                     }
                 } else if (vesc_debug_category_enabled(VESC_DEBUG_ERRORS)) {
                     const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
-                    vesc_debug_output("[%s] Buffer Error: VESC#%d FILL_RX_BUFFER_LONG no buffer found\n", 
-                                     timestamp, controller_id);
+                    if (buf_idx < 0) {
+                        vesc_debug_output("[%s] Buffer Error: VESC#%d FILL_RX_BUFFER_LONG no free buffer available\n", 
+                                         timestamp, controller_id);
+                    } else {
+                        vesc_debug_output("[%s] Buffer Error: VESC#%d FILL_RX_BUFFER_LONG buffer overflow (offset=%d, data_len=%d, max_offset=%d, buffer_size=%d)\n", 
+                                         timestamp, controller_id, offset, len - 2, offset + len - 2, VESC_RX_BUFFER_SIZE);
+                    }
                     
                     if (debug_state.config.enable_statistics) {
                         debug_state.stats.error_count++;
                     }
                 }
+            } else {
+                printf("Buffer overflow: offset=%d, len=%d\n", offset, len);
             }
         } break;
         
         case CAN_PACKET_PROCESS_RX_BUFFER: {
-            if (len < 6) return;
-            uint8_t send = data[1];
+            if (len < 6) {
+                printf("Buffer underflow: len=%d\n", len);
+                return;
+            }
+            
+            // Add defensive checks for data array access
+            if (!data) {
+                printf("PROCESS_RX_BUFFER: data is NULL\n");
+                return;
+            }
+            
+            //uint8_t last_identifier_of_controller = data[0];
+            uint8_t send_flag = data[1];
             uint16_t length = (data[2] << 8) | data[3];
             uint16_t crc_rx = (data[4] << 8) | data[5];
+            
+            // Add debug output for incoming packet
+            if (vesc_debug_category_enabled(VESC_DEBUG_BUFFERS)) {
+                const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+                vesc_debug_output("[%s] PROCESS_RX_BUFFER: VESC#%d, send_flag=0x%02X, length=%d, crc_rx=0x%04X\n", 
+                                 timestamp, controller_id, send_flag, length, crc_rx);
+            }
             
             // Find buffer for this controller
             int buf_idx = -1;
             for (int i = 0; i < VESC_RX_BUFFER_NUM; i++) {
                 if (sdk_state.rx_buffers[i].active && 
-                    sdk_state.rx_buffers[i].buffer[0] == controller_id) {
+                    sdk_state.rx_buffers[i].controller_id == controller_id) {
                     buf_idx = i;
                     break;
                 }
             }
             
+            // Add debug output for buffer search
+            if (vesc_debug_category_enabled(VESC_DEBUG_BUFFERS)) {
+                const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+                vesc_debug_output("[%s] PROCESS_RX_BUFFER: VESC#%d buffer search result: buf_idx=%d\n", 
+                                 timestamp, controller_id, buf_idx);
+            }
+            
             if (buf_idx >= 0 && length <= VESC_RX_BUFFER_SIZE) {
-                uint16_t crc_calc = vesc_crc16(sdk_state.rx_buffers[buf_idx].buffer, length);
-                if (crc_calc == crc_rx) {
-                    // Valid packet - call callback
-                    if (sdk_state.response_callback) {
-                        sdk_state.response_callback(controller_id, send, 
-                                                   sdk_state.rx_buffers[buf_idx].buffer, length);
-                    }
+                // Add defensive check for buffer access
+                if (buf_idx >= VESC_RX_BUFFER_NUM) {
+                    printf("PROCESS_RX_BUFFER: Invalid buf_idx=%d, max=%d\n", buf_idx, VESC_RX_BUFFER_NUM);
+                    return;
+                }
+
+                // Note: buffer is an array, so it can't be NULL
+                // The defensive check is not needed for arrays
+                
+                // Add debug output for CRC calculation
+                if (vesc_debug_category_enabled(VESC_DEBUG_BUFFERS)) {
+                    const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+                    vesc_debug_output("[%s] PROCESS_RX_BUFFER: VESC#%d calculating CRC for length=%d\n", 
+                                     timestamp, controller_id, length);
                     
+                    if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
+                        vesc_debug_hex_dump("  Buffer data for CRC: ", sdk_state.rx_buffers[buf_idx].buffer, length);
+                    }
+                }
+                
+                uint16_t crc_calc = vesc_crc16(sdk_state.rx_buffers[buf_idx].buffer, length);
+                
+                // Add debug output for CRC result
+                if (vesc_debug_category_enabled(VESC_DEBUG_BUFFERS)) {
+                    const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+                    vesc_debug_output("[%s] PROCESS_RX_BUFFER: VESC#%d CRC calc=0x%04X, rx=0x%04X, match=%s\n", 
+                                     timestamp, controller_id, crc_calc, crc_rx, (crc_calc == crc_rx) ? "true" : "false");
+                }
+                
+                if (crc_calc == crc_rx) {
+                    uint8_t command = sdk_state.rx_buffers[buf_idx].buffer[0];
+                
                     // Debug output for response
                     if (vesc_debug_category_enabled(VESC_DEBUG_RESPONSES)) {
                         const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
-                        const char *command_name = vesc_debug_get_command_name(send);
+                        const char *command_name = vesc_debug_get_command_name(command);
                         vesc_debug_output("[%s] Response: VESC#%d %s (%d bytes)\n", 
                                          timestamp, controller_id, command_name, length);
                         
@@ -436,6 +578,19 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
                             debug_state.stats.response_count++;
                         }
                     }
+
+                    // Valid packet - call callback
+                    if (sdk_state.response_callback) {
+                        // Add safety check for callback parameters
+                        if (buf_idx >= 0 && buf_idx < VESC_RX_BUFFER_NUM && length <= VESC_RX_BUFFER_SIZE) {
+                            sdk_state.response_callback(controller_id, command, 
+                                                       sdk_state.rx_buffers[buf_idx].buffer, length);
+                        } else {
+                            printf("ERROR: Invalid buffer access in callback (buf_idx=%d, length=%d)\n", 
+                                   buf_idx, length);
+                        }
+                    }
+                    
                 } else {
                     // CRC error
                     if (vesc_debug_category_enabled(VESC_DEBUG_ERRORS)) {
@@ -450,20 +605,34 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
                     }
                 }
                 sdk_state.rx_buffers[buf_idx].active = false;
+            } else if (vesc_debug_category_enabled(VESC_DEBUG_ERRORS)) {
+                const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+                if (buf_idx < 0) {
+                    vesc_debug_output("[%s] Buffer Error: VESC#%d PROCESS_RX_BUFFER no active buffer found\n", 
+                                     timestamp, controller_id);
+                } else {
+                    vesc_debug_output("[%s] Buffer Error: VESC#%d PROCESS_RX_BUFFER invalid length=%d, buffer_size=%d\n", 
+                                     timestamp, controller_id, length, VESC_RX_BUFFER_SIZE);
+                }
+                
+                if (debug_state.config.enable_statistics) {
+                    debug_state.stats.error_count++;
+                }
             }
         } break;
         
         case CAN_PACKET_PROCESS_SHORT_BUFFER: {
-            if (len < 1) return;
-            uint8_t send = data[0];
-            if (sdk_state.response_callback) {
-                sdk_state.response_callback(controller_id, send, data + 1, len - 1);
+            if (len < 1) {
+                printf("Buffer underflow: len=%d\n", len);
+                return;
             }
-            
+            //uint8_t last_identifier_of_controller = data[0];
+            uint8_t command = data[1];
+
             // Debug output for short buffer response
             if (vesc_debug_category_enabled(VESC_DEBUG_RESPONSES)) {
                 const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
-                const char *command_name = vesc_debug_get_command_name(send);
+                const char *command_name = vesc_debug_get_command_name(command);
                 vesc_debug_output("[%s] Short Response: VESC#%d %s (%d bytes)\n", 
                                  timestamp, controller_id, command_name, len - 1);
                 
@@ -476,14 +645,16 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
                     debug_state.stats.response_count++;
                 }
             }
+
+            if (sdk_state.response_callback) {
+                sdk_state.response_callback(controller_id, command, data + 1, len - 1);
+            } else {
+                printf("No response callback: len=%d\n", len);
+            }
+            
         } break;
         
         default:
-            // Direct packet - call callback
-            if (sdk_state.response_callback) {
-                sdk_state.response_callback(controller_id, packet_type, data, len);
-            }
-            
             // Debug output for direct packet
             if (vesc_debug_category_enabled(VESC_DEBUG_RESPONSES)) {
                 const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
@@ -500,6 +671,12 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
                     debug_state.stats.response_count++;
                 }
             }
+
+            // Direct packet - call callback
+            if (sdk_state.response_callback) {
+                sdk_state.response_callback(controller_id, packet_type, data, len);
+            }
+            
             break;
     }
 }
@@ -510,6 +687,8 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
 static void vesc_send_command(uint8_t controller_id, uint8_t *data, uint32_t len) {
     uint8_t buffer[256]; // Adjust size as needed
     int32_t index = 0;
+
+
 
     // Copy data into buffer
     memcpy(buffer, data, len);
@@ -527,8 +706,8 @@ static void vesc_send_command(uint8_t controller_id, uint8_t *data, uint32_t len
     if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS) && len > 0) {
         const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
         const char *command_name = vesc_debug_get_command_name(data[0]);
-        vesc_debug_output("[%s] Sending Command: VESC#%d %s (payload=%d bytes, total=%d bytes)\n", 
-                         timestamp, controller_id, command_name, (int)len, index);
+        vesc_debug_output("[%s] Sending Command: VESC#%d %s (payload=%d bytes, total=%d bytes, crc=0x%04X)\n", 
+                         timestamp, controller_id, command_name, (int)len, index, crc);
         
         if (debug_state.config.level >= VESC_DEBUG_VERBOSE) {
             vesc_debug_hex_dump("  Full Packet: ", buffer, index);
@@ -543,15 +722,22 @@ static void vesc_send_command(uint8_t controller_id, uint8_t *data, uint32_t len
 // Public API Implementation
 // ============================================================================
 
-bool vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t controller_id) {
+bool vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t receiver_controller_id, uint8_t sender_id) {
     if (!can_send_func) {
         return false;
     }
     
     memset(&sdk_state, 0, sizeof(sdk_state));
     sdk_state.can_send_func = can_send_func;
-    sdk_state.controller_id = controller_id;
+    sdk_state.receiver_controller_id = receiver_controller_id;  // Receiver controller ID
+    sdk_state.sender_id = sender_id;                            // Sender controller ID
     sdk_state.initialized = true;
+    
+#ifdef _WIN32
+    InitializeCriticalSection(&sdk_state.mutex);
+#else
+    pthread_mutex_init(&sdk_state.mutex, NULL);
+#endif
     
     return true;
 }
@@ -560,20 +746,52 @@ void vesc_set_response_callback(vesc_response_callback_t callback) {
     sdk_state.response_callback = callback;
 }
 
-void vesc_set_controller_id(uint8_t controller_id) {
-    sdk_state.controller_id = controller_id;
+void vesc_set_controller_id(uint8_t receiver_controller_id) {
+    sdk_state.receiver_controller_id = receiver_controller_id;
+}
+
+void vesc_set_sender_controller_id(uint8_t sender_controller_id) {
+    // This sets the controller ID that will be used as the sender ID
+    // in buffer protocol commands (first byte of process command)
+    sdk_state.sender_id = sender_controller_id;
+}
+
+uint8_t vesc_get_sender_controller_id(void) {
+    return sdk_state.sender_id;
 }
 
 void vesc_process_can_frame(uint32_t id, uint8_t *data, uint8_t len) {
-    // Extract controller ID from CAN frame
-    uint8_t frame_controller_id = id & 0xFF;
-    
-    // Only process frames from the configured controller ID
-    if (frame_controller_id != sdk_state.controller_id) {
+    // Add defensive checks for the main entry point
+    if (!sdk_state.initialized) {
+        printf("ERROR: VESC SDK not initialized\n");
         return;
     }
     
+    if (!data) {
+        printf("ERROR: vesc_process_can_frame called with NULL data\n");
+        return;
+    }
+    
+    if (len > 8) {
+        printf("ERROR: vesc_process_can_frame called with invalid len=%d (max=8)\n", len);
+        return;
+    }
+    
+#ifdef _WIN32
+    EnterCriticalSection(&sdk_state.mutex);
+#else
+    pthread_mutex_lock(&sdk_state.mutex);
+#endif
+    
+    // Process all CAN frames - don't filter by controller ID
+    // The response callback will handle the appropriate responses
     vesc_process_can_frame_internal(id, data, len);
+    
+#ifdef _WIN32
+    LeaveCriticalSection(&sdk_state.mutex);
+#else
+    pthread_mutex_unlock(&sdk_state.mutex);
+#endif
 }
 
 // ============================================================================
@@ -706,7 +924,7 @@ void vesc_set_handbrake(uint8_t controller_id, float current) {
 }
 
 // ============================================================================
-// Get Firmware Version
+// Get Firmware Version (TESTED)
 // ============================================================================
 
 void vesc_get_fw_version(uint8_t controller_id) {
@@ -914,11 +1132,12 @@ void vesc_get_decoded_ppm(uint8_t controller_id) {
 // ============================================================================
 
 bool vesc_parse_get_values(uint8_t *data, uint8_t len, vesc_values_t *values) {
-    if (!data || !values || len < 50) {
+    if (!data || !values || len < 32) {
+        printf("vesc_parse_get_values: data is NULL or values is NULL or len is less than 32\n");
         return false;
     }
     
-    int32_t index = 0;
+    int32_t index = 1;
     values->temp_fet = vesc_buffer_get_float16(data, 1e1f, &index);
     values->temp_motor = vesc_buffer_get_float16(data, 1e1f, &index);
     values->current_motor = vesc_buffer_get_float32(data, 1e2f, &index);
@@ -952,7 +1171,7 @@ bool vesc_parse_motor_rl_response(uint8_t *data, uint8_t len, vesc_motor_rl_resp
         return false;
     }
     
-    int32_t index = 0;
+    int32_t index = 1;
     response->resistance = vesc_buffer_get_float32(data, 1e6f, &index);
     response->inductance = vesc_buffer_get_float32(data, 1e8f, &index);
     response->ld_lq_diff = vesc_buffer_get_float32(data, 1e8f, &index);
@@ -966,7 +1185,7 @@ bool vesc_parse_motor_param_response(uint8_t *data, uint8_t len, vesc_motor_para
         return false;
     }
     
-    int32_t index = 0;
+    int32_t index = 1;
     response->cycle_int_limit = vesc_buffer_get_float32(data, 1e3f, &index);
     response->coupling_k = vesc_buffer_get_float32(data, 1e3f, &index);
     
@@ -985,7 +1204,7 @@ bool vesc_parse_flux_linkage_response(uint8_t *data, uint8_t len, vesc_flux_link
         return false;
     }
     
-    int32_t index = 0;
+    int32_t index = 1;
     response->flux_linkage = vesc_buffer_get_float32(data, 1e7f, &index);
     response->valid = true;
     
@@ -997,7 +1216,7 @@ bool vesc_parse_adc_values(uint8_t *data, uint8_t len, vesc_adc_values_t *values
         return false;
     }
     
-    int32_t index = 0;
+    int32_t index = 1;
     values->adc1 = vesc_buffer_get_float16(data, 1e3f, &index);
     values->adc2 = vesc_buffer_get_float16(data, 1e3f, &index);
     values->adc3 = vesc_buffer_get_float16(data, 1e3f, &index);
@@ -1012,7 +1231,7 @@ bool vesc_parse_ppm_values(uint8_t *data, uint8_t len, vesc_ppm_values_t *values
         return false;
     }
     
-    int32_t index = 0;
+    int32_t index = 1;
     values->ppm = vesc_buffer_get_float16(data, 1e3f, &index);
     values->pulse_len = vesc_buffer_get_float16(data, 1e1f, &index);
     values->valid = true;
@@ -1021,11 +1240,12 @@ bool vesc_parse_ppm_values(uint8_t *data, uint8_t len, vesc_ppm_values_t *values
 }
 
 bool vesc_parse_fw_version(uint8_t *data, uint8_t len, vesc_fw_version_t *version) {
-    if (!data || !version || len < 50) {
+    if (!data || !version || len < 30) {
+        printf("vesc_parse_fw_version: data is NULL or version is NULL or len is less than 30\n");
         return false;
     }
     
-    int32_t index = 0;
+    int32_t index = 1;
     version->major = data[index++];
     version->minor = data[index++];
     
@@ -1235,6 +1455,26 @@ void vesc_debug_print_stats(void) {
         printf("RX Rate: %.1f bytes/sec\n", (double)debug_state.stats.total_rx_bytes / uptime);
         printf("CAN TX Rate: %.1f msgs/sec\n", (double)debug_state.stats.can_tx_count / uptime);
         printf("CAN RX Rate: %.1f msgs/sec\n", (double)debug_state.stats.can_rx_count / uptime);
+    }
+    printf("=============================\n\n");
+}
+
+void vesc_debug_print_buffer_state(void) {
+    printf("\n=== VESC RX Buffer State ===\n");
+    for (int i = 0; i < VESC_RX_BUFFER_NUM; i++) {
+        printf("Buffer[%d]: active=%s, controller_id=%d, offset=%d\n", 
+               i, 
+               sdk_state.rx_buffers[i].active ? "true" : "false",
+               sdk_state.rx_buffers[i].controller_id,
+               sdk_state.rx_buffers[i].offset);
+        
+        if (sdk_state.rx_buffers[i].active && debug_state.enabled && debug_state.config.level >= VESC_DEBUG_DETAILED) {
+            printf("  Buffer data (first 16 bytes): ");
+            for (int j = 0; j < 16 && j < VESC_RX_BUFFER_SIZE; j++) {
+                printf("%02X ", sdk_state.rx_buffers[i].buffer[j]);
+            }
+            printf("\n");
+        }
     }
     printf("=============================\n\n");
 }
