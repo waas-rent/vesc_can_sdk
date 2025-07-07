@@ -52,7 +52,7 @@ except ImportError:
 
 # Load the VESC CAN SDK library
 try:
-    vesc_lib = cdll.LoadLibrary("./libvesc_can_sdk.so")
+    vesc_lib = cdll.LoadLibrary("../lib/libvesc_can_sdk.so")
 except OSError:
     print("Error: Could not load libvesc_can_sdk.so")
     print("Make sure to build the SDK first with 'make'")
@@ -198,9 +198,11 @@ class VescStatusMsg6(ctypes.Structure):
 
 class VescDebugConfig(ctypes.Structure):
     _fields_ = [
-        ("output_func", ctypes.c_void_p),
         ("level", c_uint8),
-        ("categories", c_uint16)
+        ("categories", c_uint16),
+        ("output_func", ctypes.c_void_p),
+        ("enable_timestamps", c_bool),
+        ("enable_statistics", c_bool)
     ]
 
 class VescDebugStats(ctypes.Structure):
@@ -277,10 +279,12 @@ vesc_lib.vesc_debug_get_stats.argtypes = [ctypes.POINTER(VescDebugStats)]
 vesc_lib.vesc_debug_get_stats.restype = c_bool
 
 class VescMonitor:
-    def __init__(self, can_interface: str, vesc_id: int = 1, enable_logging: bool = False, bustype: str = 'socketcan'):
+    def __init__(self, can_interface: str, vesc_id: int = 1, enable_logging: bool = False, bustype: str = 'socketcan', baudrate: int = 500000, enable_debug: bool = False):
         self.can_interface = can_interface
         self.vesc_id = vesc_id
         self.bustype = bustype
+        self.baudrate = baudrate
+        self.enable_debug = enable_debug
         self.running = True
         self.latest_values = {}
         self.latest_fw_version = None
@@ -341,7 +345,7 @@ class VescMonitor:
         self.log_file.write('# Time separator ms: ","\n')
         self.log_file.write('# Date separator: "/"\n')
         self.log_file.write('# Time and date separator: " "\n')
-        self.log_file.write("# Bit-rate: 500000\n")
+        self.log_file.write(f"# Bit-rate: {self.baudrate}\n")
         self.log_file.write("# Silent mode: false\n")
         self.log_file.write("# Cyclic mode: false\n")
         self.log_file.write("Timestamp;Lost;Type;ID;Length;Data\n")
@@ -350,25 +354,34 @@ class VescMonitor:
     
     def _init_can(self):
         """Initialize CAN interface using python-can"""
-        # Create CAN object
-        self.can_obj = can.Bus(channel=self.can_interface, bustype=self.bustype)
+        # Create CAN object with baudrate
+        if self.bustype == 'canalystii':
+            # CANalyst-II requires specific constructor parameters
+            from can.interfaces.canalystii import CANalystIIBus
+            self.can_obj = CANalystIIBus(channel=0, bitrate=self.baudrate)
+        else:
+            # Standard python-can interface
+            self.can_obj = can.Bus(interface=self.bustype, channel=self.can_interface, bitrate=self.baudrate)
         
-        print(f"CAN interface {self.can_interface} (type: {self.bustype}) initialized")
+        print(f"CAN interface {self.can_interface} (type: {self.bustype}, baudrate: {self.baudrate}) initialized")
     
     def _init_vesc_sdk(self):
         """Initialize VESC CAN SDK"""
         # Define CAN send function
-        def can_send(id: int, data: bytes, length: int) -> bool:
+        def can_send(id: int, data_ptr, length: int) -> bool:
             try:
+                # Convert ctypes pointer to bytes
+                data_bytes = bytes(data_ptr[:length])
+                
                 # Create CAN message with extended ID
                 can_id = id | 0x80000000  # Extended frame
                 # Pad data to 8 bytes if needed
-                padded_data = data + b'\x00' * (8 - length)
+                padded_data = data_bytes + b'\x00' * (8 - length)
                 can_msg = can.Message(arbitration_id=can_id, data=padded_data, is_extended_id=True)
                 self.can_obj.send(can_msg)
                 
                 # Log transmitted message
-                self._log_can_message(id, data, length, is_tx=True)
+                self._log_can_message(id, data_bytes, length, is_tx=True)
                 
                 return True
             except Exception as e:
@@ -389,7 +402,77 @@ class VescMonitor:
         self.response_callback = ctypes.CFUNCTYPE(None, c_uint8, c_uint8, ctypes.POINTER(c_uint8), c_uint8)(response_callback)
         vesc_lib.vesc_set_response_callback(self.response_callback)
         
+        # Initialize debugging if enabled
+        if self.enable_debug:
+            self._init_debug()
+        
         print("VESC CAN SDK initialized")
+    
+    def _init_debug(self):
+        """Initialize VESC CAN SDK debugging"""
+        try:
+            # Define debug output function
+            def debug_output(level: int, category: int, message_ptr):
+                try:
+                    # Convert C string pointer to Python string
+                    if message_ptr:
+                        message = message_ptr.decode('utf-8', errors='replace')
+                    else:
+                        message = "<null message>"
+                    
+                    level_names = {0: "ERROR", 1: "WARN", 2: "INFO", 3: "VERBOSE"}
+                    category_names = {0: "GENERAL", 1: "CAN", 2: "PARSER", 3: "COMM"}
+                    
+                    level_name = level_names.get(level, f"LEVEL_{level}")
+                    category_name = category_names.get(category, f"CAT_{category}")
+                    
+                    print(f"[VESC_DEBUG] {level_name}/{category_name}: {message}")
+                except Exception as e:
+                    print(f"[VESC_DEBUG] Error in debug callback: {e}")
+            
+            # Convert Python function to C callback
+            self.debug_output_func = ctypes.CFUNCTYPE(None, c_uint8, c_uint8, ctypes.c_char_p)(debug_output)
+        except Exception as e:
+            print(f"Warning: Failed to create debug callback function: {e}")
+            return
+        
+        # Configure debug settings
+        try:
+            debug_config = VescDebugConfig()
+            debug_config.level = c_uint8(3)  # DEBUG level (VESC_DEBUG_VERBOSE)
+            debug_config.categories = c_uint16(0x0F)  # All categories (GENERAL, CAN, PARSER, COMM)
+            debug_config.output_func = ctypes.cast(self.debug_output_func, ctypes.c_void_p)
+            debug_config.enable_timestamps = c_bool(True)
+            debug_config.enable_statistics = c_bool(True)
+        except Exception as e:
+            print(f"Warning: Failed to create debug configuration structure: {e}")
+            return
+        
+        # Enable debugging
+        if not vesc_lib.vesc_debug_configure(ctypes.byref(debug_config)):
+            print("Warning: Failed to configure VESC CAN SDK debugging (vesc_debug_configure returned False)")
+            return
+        
+        if not vesc_lib.vesc_debug_enable(2, 0x0F):  # Enable DEBUG level for all categories
+            print("Warning: Failed to enable VESC CAN SDK debugging (vesc_debug_enable returned False)")
+            return
+        
+        print("VESC CAN SDK debugging enabled")
+    
+    def get_debug_stats(self):
+        """Get debug statistics"""
+        if not self.enable_debug:
+            return None
+        
+        stats = VescDebugStats()
+        if vesc_lib.vesc_debug_get_stats(ctypes.byref(stats)):
+            return {
+                'rx_packets': stats.rx_packets,
+                'tx_packets': stats.tx_packets,
+                'rx_errors': stats.rx_errors,
+                'tx_errors': stats.tx_errors
+            }
+        return None
     
     def _log_can_message(self, can_id: int, data: bytes, length: int, is_tx: bool = False):
         """Log a CAN message to file"""
@@ -539,9 +622,11 @@ class VescMonitor:
     def print_status(self):
         """Print current status"""
         print("\n" + "="*60)
-        print(f"VESC Monitor - Interface: {self.can_interface} ({self.bustype}), ID: {self.vesc_id}")
+        print(f"VESC Monitor - Interface: {self.can_interface} ({self.bustype}, {self.baudrate} bps), ID: {self.vesc_id}")
         if self.enable_logging:
             print(f"CAN Logging: Enabled ({self.log_file.name if self.log_file else 'Unknown'})")
+        if self.enable_debug:
+            print("VESC Debug: Enabled")
         print("="*60)
         
         # Firmware version
@@ -584,13 +669,25 @@ class VescMonitor:
             print(f"  Inductance: {self.latest_motor_rl['inductance']:.8f}H")
             print(f"  Ld-Lq Difference: {self.latest_motor_rl['ld_lq_diff']:.8f}H")
         
+        # Debug statistics
+        if self.enable_debug:
+            debug_stats = self.get_debug_stats()
+            if debug_stats:
+                print(f"\nDebug Statistics:")
+                print(f"  RX Packets: {debug_stats['rx_packets']}")
+                print(f"  TX Packets: {debug_stats['tx_packets']}")
+                print(f"  RX Errors: {debug_stats['rx_errors']}")
+                print(f"  TX Errors: {debug_stats['tx_errors']}")
+        
         print("="*60)
     
     def run(self):
         """Run the monitor"""
-        print(f"Starting VESC monitor on {self.can_interface} ({self.bustype}) for VESC ID {self.vesc_id}")
+        print(f"Starting VESC monitor on {self.can_interface} ({self.bustype}, {self.baudrate} bps) for VESC ID {self.vesc_id}")
         if self.enable_logging:
             print(f"CAN logging enabled: {self.log_file.name if self.log_file else 'Unknown'}")
+        if self.enable_debug:
+            print("VESC debugging enabled")
         print("Press Ctrl+C to stop")
         
         # Get initial data
@@ -618,16 +715,18 @@ class VescMonitor:
 
 def main():
     parser = argparse.ArgumentParser(description='VESC CAN Monitor')
-    parser.add_argument('interface', help='CAN interface (e.g., can0, vcan0, or full python-can URL like socketcan://can0)')
+    parser.add_argument('interface', help='CAN interface (e.g., can0, vcan0, or full python-can URL like socketcan://can0). For CANalyst-II, this parameter is ignored.')
     parser.add_argument('--id', type=int, default=1, help='VESC controller ID (default: 1)')
     parser.add_argument('--detect-motor', action='store_true', help='Detect motor R/L parameters')
     parser.add_argument('--log', action='store_true', help='Enable CAN message logging to CSV file')
-    parser.add_argument('--bustype', default='socketcan', help='CAN bus type (default: socketcan, options: socketcan, pcan, vector, etc.)')
+    parser.add_argument('--bustype', default='socketcan', help='CAN bus type (default: socketcan, options: socketcan, pcan, vector, canalystii, etc.). For CANalyst-II, install with: pip install "python-can[canalystii]"')
+    parser.add_argument('--baudrate', type=int, default=500000, help='CAN bus baudrate in bits per second (default: 500000)')
+    parser.add_argument('--debug', action='store_true', help='Enable VESC CAN SDK debugging output')
     
     args = parser.parse_args()
     
     try:
-        monitor = VescMonitor(args.interface, args.id, args.log, args.bustype)
+        monitor = VescMonitor(args.interface, args.id, args.log, args.bustype, args.baudrate, args.debug)
         
         if args.detect_motor:
             print("Detecting motor R/L parameters (20 seconds)...")

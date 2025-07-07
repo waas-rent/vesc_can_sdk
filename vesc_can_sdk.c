@@ -1144,11 +1144,13 @@ bool vesc_parse_status_msg_6(uint8_t *data, uint8_t len, vesc_status_msg_6_t *st
 
 bool vesc_debug_configure(vesc_debug_config_t *config) {
     if (!config) {
+        printf("vesc_debug_configure: config is NULL\n");
         return false;
     }
     
     // Validate debug level
     if (config->level > VESC_DEBUG_VERBOSE) {
+        printf("vesc_debug_configure: level is greater than VESC_DEBUG_VERBOSE, it is %d\n", config->level);
         return false;
     }
     

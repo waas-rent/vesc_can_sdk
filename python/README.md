@@ -12,6 +12,8 @@ This Python script demonstrates how to use the VESC CAN SDK to monitor VESC moto
 
 1. Install the required Python dependencies with CANalyst-II support:
    ```bash
+   python -m venv venv
+   source ./venv/bin/activate
    pip install -r requirements.txt
    pip install "python-can[canalystii]"
    ```
