@@ -90,3 +90,4 @@ node_modules/
 output/
 scripts/last_checked_commit.txt
 scripts/venv
+python/venv
