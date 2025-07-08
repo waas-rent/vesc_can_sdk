@@ -135,6 +135,115 @@ void handle_vesc_response(uint8_t controller_id, uint8_t command, uint8_t *data,
 vesc_set_response_callback(handle_vesc_response);
 ```
 
+### Use Python Interactive Shell
+
+Use the included `vesc_shell.py` script for interactive communication with VESC controllers:
+
+```bash
+python vesc_shell.py can0 --id 118 --bustype canalystii --baudrate 1000000
+```
+
+The shell provides an interactive command-line interface for:
+- Getting motor values (temperature, current, RPM, voltage, etc.)
+- Reading ADC and PPM values
+- Getting firmware version information
+- Detecting motor parameters
+- Sending raw CAN messages
+- Listening for VESC status messages
+- Logging CAN traffic to files
+
+For more information about available commands, run `help` within the shell.
+
+#### Shell Usage Example
+
+Here's a typical session using the VESC shell using Canalyst II CAN logger as input:
+
+```bash
+# Start the shell with a VESC on CAN interface can0, controller ID 1
+$ python vesc_shell.py can0 --id 118 --bustype canalystii --baudrate 1000000
+
+VESC CAN Shell. Type help or ? to list commands.
+vesc> help
+
+Available commands:
+  values          - Get motor values (temperature, current, RPM, etc.)
+  adc             - Get ADC values
+  ppm             - Get PPM values
+  chuck           - Get decoded chuck (nunchuk) data
+  setchuck        - Set chuck (nunchuk) data
+  motor_rl        - Detect motor resistance and inductance
+  fw_version      - Get firmware version
+  reboot          - Reboot the VESC controller
+  raw_can         - Send raw CAN message
+  listen          - Listen for VESC status messages (1-6, with optional filtering)
+  verbose         - Toggle verbose logging of raw CAN messages
+  logging         - Toggle CAN message logging to file
+  quit/exit       - Exit the shell
+
+vesc> fw_version
+Getting firmware version...
+VESC 6.06 VESC_6.6 with UUID: 1234567890abcdef123456
+
+vesc> values
+Getting motor values...
+
+Motor Status:
+  Temperature FET: 45.2°C
+  Temperature Motor: 38.1°C
+  Current Motor: 2.34A
+  Current Input: 2.45A
+  Duty Cycle: 15.2%
+  RPM: 1250
+  Input Voltage: 24.1V
+  Consumed Ah: 1.23Ah
+  Consumed Wh: 29.6Wh
+  Fault Code: 0
+
+vesc> adc
+Getting ADC values...
+
+ADC Values:
+  ADC1: 0.523
+  ADC2: 0.187
+  ADC3: 0.000
+  Input Voltage: 24.1V
+
+vesc> listen 1 4
+Listening for commands: 9(STATUS_1), 16(STATUS_4)... Press Ctrl+C to stop
+[Status1] Controller: 1, RPM: 1250, Current: 2.34A, Duty: 15.2%
+[Status4] Controller: 1, Temp_FET: 45.2°C, Temp_Motor: 38.1°C, Current_In: 2.45A, PID_Pos: 0.00
+^C
+Stopped listening for status messages
+
+vesc> verbose
+Verbose logging enabled
+
+vesc> logging
+CAN logging enabled: vesc_can_log_20250115_143022.csv
+
+vesc> quit
+Exiting...
+```
+
+The shell supports various CAN interfaces and configurations:
+
+```bash
+# Use different CAN interface
+python vesc_shell.py can1 --id 2
+
+# Use different bus type (PCAN)
+python vesc_shell.py PCAN_USBBUS1 --bustype pcan --id 1
+
+# Use CANalyst-II device
+python vesc_shell.py 0 --bustype canalystii --id 1
+
+# Custom baudrate
+python vesc_shell.py can0 --id 1 --baudrate 250000
+
+# Custom sender ID
+python vesc_shell.py can0 --id 1 --sender-id 100
+```
+
 ## Command Reference
 
 ### Initialization and Configuration
@@ -567,115 +676,6 @@ typedef struct {
     float ppm;                // PPM value (0.0-1.0)
     bool valid;               // Response validity
 } vesc_status_msg_6_t;
-```
-
-### Python Interactive Shell
-
-Use the included `vesc_shell.py` script for interactive communication with VESC controllers:
-
-```bash
-python vesc_shell.py can0 --id 118 --bustype canalystii --baudrate 1000000
-```
-
-The shell provides an interactive command-line interface for:
-- Getting motor values (temperature, current, RPM, voltage, etc.)
-- Reading ADC and PPM values
-- Getting firmware version information
-- Detecting motor parameters
-- Sending raw CAN messages
-- Listening for VESC status messages
-- Logging CAN traffic to files
-
-For more information about available commands, run `help` within the shell.
-
-#### Shell Usage Example
-
-Here's a typical session using the VESC shell using Canalyst II CAN logger as input:
-
-```bash
-# Start the shell with a VESC on CAN interface can0, controller ID 1
-$ python vesc_shell.py can0 --id 118 --bustype canalystii --baudrate 1000000
-
-VESC CAN Shell. Type help or ? to list commands.
-vesc> help
-
-Available commands:
-  values          - Get motor values (temperature, current, RPM, etc.)
-  adc             - Get ADC values
-  ppm             - Get PPM values
-  chuck           - Get decoded chuck (nunchuk) data
-  setchuck        - Set chuck (nunchuk) data
-  motor_rl        - Detect motor resistance and inductance
-  fw_version      - Get firmware version
-  reboot          - Reboot the VESC controller
-  raw_can         - Send raw CAN message
-  listen          - Listen for VESC status messages (1-6, with optional filtering)
-  verbose         - Toggle verbose logging of raw CAN messages
-  logging         - Toggle CAN message logging to file
-  quit/exit       - Exit the shell
-
-vesc> fw_version
-Getting firmware version...
-VESC 6.06 VESC_6.6 with UUID: 1234567890abcdef123456
-
-vesc> values
-Getting motor values...
-
-Motor Status:
-  Temperature FET: 45.2°C
-  Temperature Motor: 38.1°C
-  Current Motor: 2.34A
-  Current Input: 2.45A
-  Duty Cycle: 15.2%
-  RPM: 1250
-  Input Voltage: 24.1V
-  Consumed Ah: 1.23Ah
-  Consumed Wh: 29.6Wh
-  Fault Code: 0
-
-vesc> adc
-Getting ADC values...
-
-ADC Values:
-  ADC1: 0.523
-  ADC2: 0.187
-  ADC3: 0.000
-  Input Voltage: 24.1V
-
-vesc> listen 1 4
-Listening for commands: 9(STATUS_1), 16(STATUS_4)... Press Ctrl+C to stop
-[Status1] Controller: 1, RPM: 1250, Current: 2.34A, Duty: 15.2%
-[Status4] Controller: 1, Temp_FET: 45.2°C, Temp_Motor: 38.1°C, Current_In: 2.45A, PID_Pos: 0.00
-^C
-Stopped listening for status messages
-
-vesc> verbose
-Verbose logging enabled
-
-vesc> logging
-CAN logging enabled: vesc_can_log_20250115_143022.csv
-
-vesc> quit
-Exiting...
-```
-
-The shell supports various CAN interfaces and configurations:
-
-```bash
-# Use different CAN interface
-python vesc_shell.py can1 --id 2
-
-# Use different bus type (PCAN)
-python vesc_shell.py PCAN_USBBUS1 --bustype pcan --id 1
-
-# Use CANalyst-II device
-python vesc_shell.py 0 --bustype canalystii --id 1
-
-# Custom baudrate
-python vesc_shell.py can0 --id 1 --baudrate 250000
-
-# Custom sender ID
-python vesc_shell.py can0 --id 1 --sender-id 100
 ```
 
 ## Building
