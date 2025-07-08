@@ -384,9 +384,23 @@ class VescDashboard:
             Layout(name="footer", size=8)
         )
         
+        # Create a 2x3 grid for the main area
         self.layout["main"].split_row(
             Layout(name="left", ratio=1),
             Layout(name="right", ratio=1)
+        )
+        
+        # Split left column into 3 panels
+        self.layout["main"]["left"].split_column(
+            Layout(name="temperature", ratio=1),
+            Layout(name="electrical", ratio=1),
+            Layout(name="speed_position", ratio=1)
+        )
+        
+        # Split right column into 2 panels
+        self.layout["main"]["right"].split_column(
+            Layout(name="energy", ratio=1),
+            Layout(name="status", ratio=1)
         )
     
     def _create_header(self) -> Panel:
@@ -403,78 +417,174 @@ class VescDashboard:
         
         return Panel(header_content, title="VESC Motor Controller", border_style="blue")
     
-    def _create_motor_values_panel(self) -> Panel:
-        """Create the motor values panel"""
-        table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED)
-        table.add_column("Parameter", style="cyan", no_wrap=True)
-        table.add_column("Value", style="white")
-        table.add_column("Unit", style="dim")
+    def _create_temperature_panel(self) -> Panel:
+        """Create the temperature monitoring panel"""
+        table = Table(show_header=True, header_style="bold red", box=box.ROUNDED, expand=True)
+        table.add_column("Component", style="cyan", no_wrap=True, ratio=1)
+        table.add_column("Temperature", style="white", ratio=1)
+        table.add_column("Status", style="dim", ratio=1)
         
         if self.latest_values:
-            # Temperature section
-            table.add_row("FET Temperature", f"{self.latest_values['temp_fet']:.1f}", "°C")
-            table.add_row("Motor Temperature", f"{self.latest_values['temp_motor']:.1f}", "°C")
-            table.add_row("MOS1 Temperature", f"{self.latest_values['temp_mos1']:.1f}", "°C")
-            table.add_row("MOS2 Temperature", f"{self.latest_values['temp_mos2']:.1f}", "°C")
-            table.add_row("MOS3 Temperature", f"{self.latest_values['temp_mos3']:.1f}", "°C")
+            # Helper function to get temperature status
+            def get_temp_status(temp):
+                if temp < 50:
+                    return "🟢 Normal"
+                elif temp < 70:
+                    return "🟡 Warm"
+                else:
+                    return "🔴 Hot"
             
-            # Current section
-            table.add_row("Motor Current", f"{self.latest_values['current_motor']:.2f}", "A")
-            table.add_row("Input Current", f"{self.latest_values['current_in']:.2f}", "A")
-            table.add_row("Duty Cycle", f"{self.latest_values['duty_cycle']*100:.1f}", "%")
+            fet_temp = self.latest_values['temp_fet']
+            motor_temp = self.latest_values['temp_motor']
+            mos1_temp = self.latest_values['temp_mos1']
+            mos2_temp = self.latest_values['temp_mos2']
+            mos3_temp = self.latest_values['temp_mos3']
             
-            # Speed and position
-            table.add_row("RPM", f"{self.latest_values['rpm']:.0f}", "")
-            table.add_row("Tachometer", f"{self.latest_values['tachometer']}", "")
-            table.add_row("Tachometer Abs", f"{self.latest_values['tachometer_abs']}", "")
-            
-            # Voltage
-            table.add_row("Input Voltage", f"{self.latest_values['v_in']:.1f}", "V")
-            
-            # Energy
-            table.add_row("Consumed Ah", f"{self.latest_values['amp_hours']:.2f}", "Ah")
-            table.add_row("Consumed Wh", f"{self.latest_values['watt_hours']:.2f}", "Wh")
-            
-            # Status
-            table.add_row("Fault Code", f"{self.latest_values['fault_code']}", "")
-            table.add_row("Status", f"{self.latest_values['status']}", "")
+            table.add_row("FET", f"{fet_temp:.1f}°C", get_temp_status(fet_temp))
+            table.add_row("Motor", f"{motor_temp:.1f}°C", get_temp_status(motor_temp))
+            table.add_row("MOS1", f"{mos1_temp:.1f}°C", get_temp_status(mos1_temp))
+            table.add_row("MOS2", f"{mos2_temp:.1f}°C", get_temp_status(mos2_temp))
+            table.add_row("MOS3", f"{mos3_temp:.1f}°C", get_temp_status(mos3_temp))
         else:
             table.add_row("No data", "Waiting...", "")
         
-        return Panel(table, title="Motor Values", border_style="green")
+        return Panel(table, title="🌡️ Temperature Monitor", border_style="red", expand=True)
     
-    def _create_advanced_values_panel(self) -> Panel:
-        """Create the advanced values panel"""
-        table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED)
-        table.add_column("Parameter", style="cyan", no_wrap=True)
-        table.add_column("Value", style="white")
-        table.add_column("Unit", style="dim")
+    def _create_electrical_panel(self) -> Panel:
+        """Create the electrical parameters panel"""
+        table = Table(show_header=True, header_style="bold yellow", box=box.ROUNDED, expand=True)
+        table.add_column("Parameter", style="cyan", no_wrap=True, ratio=1)
+        table.add_column("Value", style="white", ratio=1)
+        table.add_column("Unit", style="dim", ratio=1)
         
         if self.latest_values:
-            # Advanced motor parameters
-            table.add_row("Controller ID", f"{self.latest_values['controller_id']}", "")
-            table.add_row("Current Iq", f"{self.latest_values['current_iq']:.3f}", "A")
-            table.add_row("Vd", f"{self.latest_values['vd']:.3f}", "V")
-            table.add_row("Vq", f"{self.latest_values['vq']:.3f}", "V")
-            table.add_row("PID Position", f"{self.latest_values['pid_pos']:.3f}", "")
+            # Current measurements
+            motor_current = self.latest_values['current_motor']
+            input_current = self.latest_values['current_in']
+            iq_current = self.latest_values['current_iq']
+            duty_cycle = self.latest_values['duty_cycle']
+            input_voltage = self.latest_values['v_in']
             
-            # Charging values
-            table.add_row("Ah Charged", f"{self.latest_values['amp_hours_charged']:.2f}", "Ah")
-            table.add_row("Wh Charged", f"{self.latest_values['watt_hours_charged']:.2f}", "Wh")
+            # Helper function to get current status
+            def get_current_status(current):
+                if abs(current) < 10:
+                    return "🟢 Low"
+                elif abs(current) < 30:
+                    return "🟡 Medium"
+                else:
+                    return "🔴 High"
             
-            # Last update info
+            table.add_row("Motor Current", f"{motor_current:.2f}A", get_current_status(motor_current))
+            table.add_row("Input Current", f"{input_current:.2f}A", get_current_status(input_current))
+            table.add_row("Iq Current", f"{iq_current:.2f}A", "")
+            table.add_row("Duty Cycle", f"{duty_cycle*100:.1f}%", "")
+            table.add_row("Input Voltage", f"{input_voltage:.1f}V", "")
+        else:
+            table.add_row("No data", "Waiting...", "")
+        
+        return Panel(table, title="⚡ Electrical Parameters", border_style="yellow", expand=True)
+    
+    def _create_speed_position_panel(self) -> Panel:
+        """Create the speed and position panel"""
+        table = Table(show_header=True, header_style="bold green", box=box.ROUNDED, expand=True)
+        table.add_column("Parameter", style="cyan", no_wrap=True, ratio=1)
+        table.add_column("Value", style="white", ratio=1)
+        table.add_column("Status", style="dim", ratio=1)
+        
+        if self.latest_values:
+            rpm = self.latest_values['rpm']
+            tacho = self.latest_values['tachometer']
+            tacho_abs = self.latest_values['tachometer_abs']
+            pid_pos = self.latest_values['pid_pos']
+            
+            # Helper function to get RPM status
+            def get_rpm_status(rpm_val):
+                if abs(rpm_val) < 1000:
+                    return "🟢 Low"
+                elif abs(rpm_val) < 5000:
+                    return "🟡 Medium"
+                else:
+                    return "🔴 High"
+            
+            table.add_row("RPM", f"{rpm:.0f}", get_rpm_status(rpm))
+            table.add_row("Tachometer", f"{tacho:,}", "")
+            table.add_row("Tacho Abs", f"{tacho_abs:,}", "")
+            table.add_row("PID Position", f"{pid_pos:.3f}", "")
+        else:
+            table.add_row("No data", "Waiting...", "")
+        
+        return Panel(table, title="🔄 Speed & Position", border_style="green", expand=True)
+    
+    def _create_energy_panel(self) -> Panel:
+        """Create the energy consumption panel"""
+        table = Table(show_header=True, header_style="bold blue", box=box.ROUNDED, expand=True)
+        table.add_column("Parameter", style="cyan", no_wrap=True, ratio=1)
+        table.add_column("Value", style="white", ratio=1)
+        table.add_column("Unit", style="dim", ratio=1)
+        
+        if self.latest_values:
+            amp_hours = self.latest_values['amp_hours']
+            amp_hours_charged = self.latest_values['amp_hours_charged']
+            watt_hours = self.latest_values['watt_hours']
+            watt_hours_charged = self.latest_values['watt_hours_charged']
+            
+            # Calculate efficiency
+            if amp_hours_charged > 0:
+                efficiency = (amp_hours / amp_hours_charged) * 100
+            else:
+                efficiency = 0
+            
+            table.add_row("Consumed Ah", f"{amp_hours:.2f}", "Ah")
+            table.add_row("Charged Ah", f"{amp_hours_charged:.2f}", "Ah")
+            table.add_row("Consumed Wh", f"{watt_hours:.1f}", "Wh")
+            table.add_row("Charged Wh", f"{watt_hours_charged:.1f}", "Wh")
+            table.add_row("Efficiency", f"{efficiency:.1f}", "%")
+        else:
+            table.add_row("No data", "Waiting...", "")
+        
+        return Panel(table, title="🔋 Energy Monitor", border_style="blue", expand=True)
+    
+    def _create_status_panel(self) -> Panel:
+        """Create the system status panel"""
+        table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED, expand=True)
+        table.add_column("Parameter", style="cyan", no_wrap=True, ratio=1)
+        table.add_column("Value", style="white", ratio=1)
+        table.add_column("Status", style="dim", ratio=1)
+        
+        if self.latest_values:
+            fault_code = self.latest_values['fault_code']
+            status = self.latest_values['status']
+            controller_id = self.latest_values['controller_id']
+            vd = self.latest_values['vd']
+            vq = self.latest_values['vq']
+            
+            # Fault code interpretation
+            fault_status = "🟢 OK" if fault_code == 0 else f"🔴 Error {fault_code}"
+            
+            # Connection status
             if self.stats['last_update']:
                 time_diff = (datetime.now() - self.stats['last_update']).total_seconds()
-                table.add_row("Last Update", f"{time_diff:.1f}s ago", "")
+                if time_diff < 2:
+                    conn_status = "🟢 Connected"
+                elif time_diff < 5:
+                    conn_status = "🟡 Slow"
+                else:
+                    conn_status = "🔴 Disconnected"
             else:
-                table.add_row("Last Update", "Never", "")
+                conn_status = "🔴 No Data"
             
+            table.add_row("Controller ID", f"{controller_id}", "")
+            table.add_row("Fault Code", f"{fault_code}", fault_status)
+            table.add_row("System Status", f"{status}", "")
+            table.add_row("Vd", f"{vd:.3f}V", "")
+            table.add_row("Vq", f"{vq:.3f}V", "")
+            table.add_row("Connection", "", conn_status)
             table.add_row("Messages Rx", f"{self.stats['messages_received']}", "")
             table.add_row("Errors", f"{self.stats['errors']}", "")
         else:
             table.add_row("No data", "Waiting...", "")
         
-        return Panel(table, title="Advanced Values", border_style="yellow")
+        return Panel(table, title="📊 System Status", border_style="magenta", expand=True)
     
     def _create_log_panel(self) -> Panel:
         """Create the log panel"""
@@ -484,13 +594,16 @@ class VescDashboard:
         if not log_text:
             log_text = "No log messages yet..."
         
-        return Panel(log_text, title="Log Messages", border_style="red")
+        return Panel(log_text, title="📝 CAN Bus Logs", border_style="cyan", expand=True)
     
     def _create_dashboard(self) -> Layout:
         """Create the complete dashboard"""
         self.layout["header"].update(self._create_header())
-        self.layout["main"]["left"].update(self._create_motor_values_panel())
-        self.layout["main"]["right"].update(self._create_advanced_values_panel())
+        self.layout["main"]["left"]["temperature"].update(self._create_temperature_panel())
+        self.layout["main"]["left"]["electrical"].update(self._create_electrical_panel())
+        self.layout["main"]["left"]["speed_position"].update(self._create_speed_position_panel())
+        self.layout["main"]["right"]["energy"].update(self._create_energy_panel())
+        self.layout["main"]["right"]["status"].update(self._create_status_panel())
         self.layout["footer"].update(self._create_log_panel())
         
         return self.layout
