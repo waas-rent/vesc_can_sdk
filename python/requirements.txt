@@ -1,1 +1,2 @@
-python-can[canalystii]>=4.0.0 
+python-can[canalystii]>=4.0.0
+rich>=13.0.0 
