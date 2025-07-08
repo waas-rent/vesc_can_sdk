@@ -301,7 +301,7 @@ vesc_lib.vesc_parse_chuck_values.argtypes = [ctypes.POINTER(c_uint8), c_uint8, c
 vesc_lib.vesc_parse_chuck_values.restype = c_bool
 
 class VescShell(cmd.Cmd):
-    intro = 'VESC CAN Shell. Type help or ? to list commands.\n'
+    intro = 'VESC CAN Shell. Type help or ? to list commands.'
     prompt = 'vesc> '
     
     def __init__(self, can_interface: str, vesc_id: int = 1, bustype: str = 'socketcan', 
@@ -322,6 +322,7 @@ class VescShell(cmd.Cmd):
         self.response_received = threading.Event()
         self.response_data = None
         self.response_command = None
+        self.processing_response = False  # Flag to track when we're processing a VESC response
         
         # Latest data storage
         self.latest_values = {}
@@ -343,6 +344,8 @@ class VescShell(cmd.Cmd):
         self.status_listening = False
         self.status_listen_thread = None
         self.listen_command_filter = set()  # Empty set means listen to all commands
+
+        self.connected = False
         
         # Set up signal handler
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -428,7 +431,12 @@ class VescShell(cmd.Cmd):
                     can_msg = can.Message(arbitration_id=can_id, data=padded_data, is_extended_id=True)
                     
                     if self.verbose:
-                        print(f"[CAN TX] ID: 0x{can_id:08X}, Data: {data_bytes.hex()}")
+                        # Extract command from first byte if available
+                        command_name = "UNKNOWN"
+                        if length > 0:
+                            command_id = data_bytes[0]
+                            command_name = self._get_command_name(command_id)
+                        print(f"[CAN TX] ID: 0x{can_id:08X}, Command: {command_name}({data_bytes[0] if length > 0 else 'N/A'}), Data: {data_bytes.hex()}")
                     
                     self.can_obj.send(can_msg)
                     self._log_can_message(id, data_bytes, length, is_tx=True)
@@ -473,6 +481,7 @@ class VescShell(cmd.Cmd):
     
     def _handle_response(self, controller_id: int, command: int, data: bytes, length: int):
         """Handle VESC response"""
+        self.processing_response = True
         try:
             if hasattr(data, 'contents'):
                 data_array = ctypes.cast(data, ctypes.POINTER(c_uint8 * length)).contents
@@ -485,7 +494,8 @@ class VescShell(cmd.Cmd):
             
             if self.verbose:
                 data_bytes = bytes(data_array)
-                print(f"[CAN RX] Controller: {controller_id}, Command: {command}, Data: {data_bytes.hex()}")
+                command_name = self._get_command_name(command)
+                print(f"[CAN RX] Controller: {controller_id}, Command: {command_name}({command}), Data: {data_bytes.hex()}")
             
             # Set response received event
             self.response_received.set()
@@ -531,6 +541,9 @@ class VescShell(cmd.Cmd):
                         'cfg_num': version.cfg_num,
                         'uuid': version.uuid
                     }
+                    if not self.connected:
+                        self.connected = True
+                        print(f"VESC {self.latest_fw_version['major']}.{self.latest_fw_version['minor']} {self.latest_fw_version['hw_name']} connected\n")
             
             elif command == 32:  # COMM_GET_DECODED_ADC
                 adc = VescAdcValues()
@@ -694,19 +707,27 @@ class VescShell(cmd.Cmd):
             
         except Exception as e:
             print(f"Error in _handle_response: {e}")
+        finally:
+            self.processing_response = False
     
     def _monitor_loop(self):
         """Main monitoring loop"""
+
+        print("Connecting to VESC...")
+        vesc_lib.vesc_get_fw_version(self.vesc_id)
+
         while self.running:
             try:
                 msg = self.can_obj.recv(timeout=0.001)
                 if msg:
-                    if self.verbose:
-                        print(f"[CAN RX] ID: 0x{msg.arbitration_id:08X}, Data: {msg.data.hex()}")
-                    
                     can_id = msg.arbitration_id
                     data = msg.data
                     length = len(data)
+                    
+                    # Only log raw CAN messages if verbose is enabled and we're not processing a VESC response
+                    # This prevents duplicate output since _handle_response will print the parsed message
+                    if self.verbose and not self.processing_response:
+                        print(f"[CAN RX] ID: 0x{can_id:08X}, Data: {data.hex()}")
                     
                     self._log_can_message(can_id, data, length, is_tx=False)
                     
@@ -1204,6 +1225,9 @@ def main():
     
     try:
         shell = VescShell(args.interface, args.id, args.bustype, args.baudrate, args.sender_id)
+        # wait until VESC is connected
+        while not shell.connected:
+            time.sleep(0.1)
         shell.cmdloop()
     except KeyboardInterrupt:
         print("\nShell stopped by user")
