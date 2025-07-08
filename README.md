@@ -1,6 +1,6 @@
 # VESC CAN SDK
 
-A pure C SDK for communicating with VESC controllers over CAN bus. This SDK provides a simple interface to send commands and receive responses from VESC devices without requiring any special libraries beyond a user-provided CAN send function.
+A pure C SDK for communicating with VESC controllers over CAN bus. This SDK provides a simple interface to send commands and receive responses from VESC devices without requiring any special libraries beyond a user-provided CAN send function. It also features a Python based shell which uses the SDK to provide interactive access to a VESC controller.
 
 Use cases for this SDK include but are not limited to
 
