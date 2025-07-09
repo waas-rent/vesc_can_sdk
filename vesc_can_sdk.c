@@ -131,6 +131,12 @@ static void vesc_debug_hex_dump(const char *prefix, uint8_t *data, uint8_t len) 
         return;
     }
     
+    // Handle NULL data case (e.g., for PING packets)
+    if (!data) {
+        vesc_debug_output("%s(no data)\n", prefix);
+        return;
+    }
+    
     char hex_line[128];
     char ascii_line[64];
     int hex_pos = 0;
@@ -694,8 +700,6 @@ static void vesc_send_command(uint8_t controller_id, uint8_t *data, uint32_t len
     uint8_t buffer[256]; // Adjust size as needed
     int32_t index = 0;
 
-
-
     // Copy data into buffer
     memcpy(buffer, data, len);
     index += len;
@@ -955,6 +959,30 @@ void vesc_get_fw_version(uint8_t controller_id) {
 
     // Use vesc_send_command to handle CRC and stop byte
     vesc_send_command(controller_id, buffer, 1);
+}
+
+// ============================================================================
+// Ping Function
+// ============================================================================
+
+void vesc_ping(uint8_t controller_id) {
+    // PING packet has no data, just send empty packet
+    uint32_t can_id = controller_id | ((uint32_t)CAN_PACKET_PING << 8);
+    
+    // Debug output for command
+    if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
+        const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+        vesc_debug_output("[%s] Command: VESC#%d PING\n", 
+                         timestamp, controller_id);
+        
+        // Update statistics
+        if (debug_state.config.enable_statistics) {
+            debug_state.stats.command_count++;
+        }
+    }
+    
+    // Send empty PING packet
+    vesc_can_send_packet(can_id, NULL, 0);
 }
 
 
@@ -1295,8 +1323,8 @@ bool vesc_parse_motor_rl_response(uint8_t *data, uint8_t len, vesc_motor_rl_resp
     
     int32_t index = 1;
     response->resistance = vesc_buffer_get_float32(data, 1e6f, &index);
-    response->inductance = vesc_buffer_get_float32(data, 1e8f, &index);
-    response->ld_lq_diff = vesc_buffer_get_float32(data, 1e8f, &index);
+    response->inductance = vesc_buffer_get_float32(data, 1e3f, &index);
+    response->ld_lq_diff = vesc_buffer_get_float32(data, 1e3f, &index);
     response->valid = true;
     
     return true;
@@ -1498,6 +1526,17 @@ bool vesc_parse_status_msg_6(uint8_t *data, uint8_t len, vesc_status_msg_6_t *st
     return true;
 }
 
+bool vesc_parse_pong_response(uint8_t *data, uint8_t len, vesc_pong_response_t *pong) {
+    if (!data || !pong || len < 1) {
+        return false;
+    }
+    
+    pong->controller_id = data[0];
+    pong->valid = true;
+    
+    return true;
+}
+
 // ============================================================================
 // Debug Functions
 // ============================================================================
@@ -1560,6 +1599,15 @@ bool vesc_debug_get_stats(vesc_debug_stats_t *stats) {
     }
     
     *stats = debug_state.stats;
+    return true;
+}
+
+bool vesc_debug_get_config(vesc_debug_config_t *config) {
+    if (!config) {
+        return false;
+    }
+    
+    *config = debug_state.config;
     return true;
 }
 

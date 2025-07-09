@@ -201,8 +201,8 @@ typedef struct {
 
 typedef struct {
     float resistance;         // Motor resistance (Ω)
-    float inductance;         // Motor inductance (H)
-    float ld_lq_diff;         // Ld-Lq difference (H)
+    float inductance;         // Motor inductance (microhenryH)
+    float ld_lq_diff;         // Ld-Lq difference (microhenryH)
     bool valid;               // Response validity
 } vesc_motor_rl_response_t;
 
@@ -312,6 +312,11 @@ typedef struct {
     float ppm;                // PPM value (0.0-1.0)
     bool valid;               // Response validity
 } vesc_status_msg_6_t;
+
+typedef struct {
+    uint8_t controller_id;    // Controller ID from PONG response
+    bool valid;               // Response validity
+} vesc_pong_response_t;
 
 // ============================================================================
 // Function Types
@@ -525,6 +530,13 @@ void vesc_set_chuck_data(uint8_t controller_id, const vesc_chuck_data_t *chuck_d
  */
 void vesc_get_fw_version(uint8_t controller_id);
 
+/**
+ * Send ping to VESC controller
+ * 
+ * @param controller_id VESC controller ID (0-255)
+ */
+void vesc_ping(uint8_t controller_id);
+
 // ============================================================================
 // Response Parsing Functions
 // ============================================================================
@@ -673,6 +685,16 @@ bool vesc_parse_status_msg_5(uint8_t *data, uint8_t len, vesc_status_msg_5_t *st
  */
 bool vesc_parse_status_msg_6(uint8_t *data, uint8_t len, vesc_status_msg_6_t *status);
 
+/**
+ * Parse CAN_PACKET_PONG response
+ * 
+ * @param data Response data
+ * @param len Data length
+ * @param pong Pointer to pong response structure
+ * @return true on success, false on failure
+ */
+bool vesc_parse_pong_response(uint8_t *data, uint8_t len, vesc_pong_response_t *pong);
+
 // ============================================================================
 // Debug Functions
 // ============================================================================
@@ -713,6 +735,14 @@ void vesc_debug_set_output_func(vesc_debug_output_func_t output_func);
  * @return true on success, false on failure
  */
 bool vesc_debug_get_stats(vesc_debug_stats_t *stats);
+
+/**
+ * Get current debug configuration
+ * 
+ * @param config Pointer to debug configuration structure
+ * @return true on success, false on failure
+ */
+bool vesc_debug_get_config(vesc_debug_config_t *config);
 
 /**
  * Reset debug statistics
