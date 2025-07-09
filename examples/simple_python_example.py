@@ -14,7 +14,6 @@ Copyright (c) 2025 waas AG (waas.rent)
 import sys
 import time
 import ctypes
-from ctypes import cdll, c_bool, c_uint8, c_uint32, c_float, c_int32
 import threading
 
 # Try to import python-can
@@ -25,53 +24,14 @@ except ImportError:
     print("Install it with: pip install python-can")
     sys.exit(1)
 
-# Load the VESC CAN SDK library
+# Import VESC CAN SDK bindings
 try:
-    vesc_lib = cdll.LoadLibrary("../lib/libvesc_can_sdk.so")
-except OSError as e:
-    print(f"Error: Could not load libvesc_can_sdk.so: {e}")
-    print("Make sure to build the SDK first with 'make'")
+    sys.path.append('../python')  # Add python directory to path
+    from vesc_can_sdk import vesc_lib, VescValues
+except ImportError as e:
+    print(f"Error: Could not import VESC CAN SDK bindings: {e}")
+    print("Make sure vesc_can_sdk.py is in the python directory")
     sys.exit(1)
-
-# Define C types for structures
-class VescValues(ctypes.Structure):
-    _fields_ = [
-        ("temp_fet", c_float),
-        ("temp_motor", c_float),
-        ("current_motor", c_float),
-        ("current_in", c_float),
-        ("current_id", c_float),
-        ("current_iq", c_float),
-        ("duty_cycle", c_float),
-        ("rpm", c_float),
-        ("v_in", c_float),
-        ("amp_hours", c_float),
-        ("amp_hours_charged", c_float),
-        ("watt_hours", c_float),
-        ("watt_hours_charged", c_float),
-        ("tachometer", c_int32),
-        ("tachometer_abs", c_int32),
-        ("fault_code", c_uint8),
-        ("pid_pos", c_float),
-        ("controller_id", c_uint8),
-        ("temp_mos1", c_float),
-        ("temp_mos2", c_float),
-        ("temp_mos3", c_float),
-        ("vd", c_float),
-        ("vq", c_float),
-        ("status", c_uint8)
-    ]
-
-# Define function signatures
-vesc_lib.vesc_can_init.argtypes = [ctypes.c_void_p, c_uint8, c_uint8]
-vesc_lib.vesc_can_init.restype = c_bool
-
-vesc_lib.vesc_set_response_callback.argtypes = [ctypes.c_void_p]
-vesc_lib.vesc_process_can_frame.argtypes = [c_uint32, ctypes.POINTER(c_uint8), c_uint8]
-vesc_lib.vesc_get_values.argtypes = [c_uint8]
-vesc_lib.vesc_set_current.argtypes = [c_uint8, c_float]
-vesc_lib.vesc_parse_get_values.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescValues)]
-vesc_lib.vesc_parse_get_values.restype = c_bool
 
 class SimpleVescExample:
     def __init__(self, can_interface="can0", vesc_id=1, sender_id=42):
