@@ -331,6 +331,13 @@ vesc_lib.vesc_parse_chuck_values = vesc_lib.vesc_parse_chuck_values
 vesc_lib.vesc_parse_chuck_values.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescChuckValues)]
 vesc_lib.vesc_parse_chuck_values.restype = c_bool
 
+# Add motor control function signatures
+vesc_lib.vesc_set_current.argtypes = [c_uint8, c_float]
+vesc_lib.vesc_set_current.restype = None
+vesc_lib.vesc_set_duty = vesc_lib.vesc_set_duty
+vesc_lib.vesc_set_duty.argtypes = [c_uint8, c_float]
+vesc_lib.vesc_set_duty.restype = None
+
 # Debug constants
 VESC_DEBUG_NONE = 0
 VESC_DEBUG_BASIC = 1
@@ -930,6 +937,8 @@ class VescShell(cmd.Cmd):
             # Show general help
             print("\nAvailable commands:")
             print("  values          - Get motor values (temperature, current, RPM, etc.)")
+            print("  setcurrent      - Set motor current for specified duration")
+            print("  setduty         - Set motor duty cycle for specified duration")
             print("  adc             - Get ADC values")
             print("  ppm             - Get PPM values")
             print("  chuck           - Get decoded chuck (nunchuk) data")
@@ -941,7 +950,6 @@ class VescShell(cmd.Cmd):
             print("  ping            - Send PING to VESC and wait for PONG response")
             print("  raw_can         - Send raw CAN message")
             print("  listen          - Listen for VESC status messages (1-6, with optional filtering)")
-            print("  verbose         - Toggle verbose logging of raw CAN messages")
             print("  logging         - Toggle CAN message logging to file")
             print("  debug           - Enable/disable SDK debugging")
             print("  debug_stats     - Show SDK debug statistics")
@@ -982,6 +990,211 @@ class VescShell(cmd.Cmd):
                 print("Failed to parse motor values")
         else:
             print("Failed to get motor values")
+    
+    def help_setcurrent(self):
+        """Help for setcurrent command"""
+        print("setcurrent - Set motor current for specified duration")
+        print("  Sets the motor current and repeats the command for the specified duration.")
+        print("  WARNING: This command will turn the motor!")
+        print("  Usage: setcurrent <current> [duration]")
+        print("  Parameters:")
+        print("    current  - Motor current in Amperes (positive or negative)")
+        print("    duration - Duration in seconds (default: 1.0)")
+        print("  Examples:")
+        print("    setcurrent 5.0              - Set 5A current for 1 second")
+        print("    setcurrent -3.0 2.5         - Set -3A current for 2.5 seconds")
+        print("    setcurrent 0.0              - Stop motor (0A current)")
+        print("  Note: Positive current turns motor forward, negative turns backward.")
+        print("  The command is repeated every 200ms for the specified duration.")
+    
+    def do_setcurrent(self, arg):
+        """Set motor current for specified duration"""
+        if not arg:
+            print("Error: setcurrent requires at least current argument")
+            print("Usage: setcurrent <current> [duration]")
+            return
+        
+        args = shlex.split(arg)
+        if len(args) < 1:
+            print("Error: setcurrent requires at least current argument")
+            print("Usage: setcurrent <current> [duration]")
+            return
+        
+        if len(args) > 2:
+            print("Error: Too many arguments")
+            print("Usage: setcurrent <current> [duration]")
+            return
+        
+        # Parse current
+        try:
+            current = float(args[0])
+        except ValueError:
+            print("Error: Current must be a valid number")
+            return
+        
+        # Parse duration (default to 1.0 second)
+        duration = 1.0
+        if len(args) > 1:
+            try:
+                duration = float(args[1])
+                if duration <= 0:
+                    print("Error: Duration must be positive")
+                    return
+            except ValueError:
+                print("Error: Duration must be a valid number")
+                return
+        
+        # Warn user about motor movement
+        if current != 0.0:
+            print("WARNING: This command will turn the motor!")
+            print("Make sure the motor is free to rotate and not connected to any load.")
+            print(f"Current: {current:.2f}A, Duration: {duration:.1f}s")
+            
+            # Ask for confirmation
+            try:
+                confirm = input("Do you want to continue? (yes/no): ").strip().lower()
+                if confirm not in ['yes', 'y']:
+                    print("Current setting cancelled.")
+                    return
+            except KeyboardInterrupt:
+                print("\nCurrent setting cancelled.")
+                return
+        
+        print(f"Setting motor current to {current:.2f}A for {duration:.1f} seconds...")
+        
+        # Calculate number of commands to send (every 200ms)
+        command_interval = 0.2  # 200ms
+        num_commands = int(duration / command_interval) + 1  # +1 to ensure we cover the full duration
+        
+        start_time = time.time()
+        
+        try:
+            for i in range(num_commands):
+                # Send current command
+                vesc_lib.vesc_set_current(self.vesc_id, current)
+                
+                # Calculate remaining time
+                elapsed = time.time() - start_time
+                remaining = duration - elapsed
+                
+                if remaining <= 0:
+                    break
+                
+                # Sleep for command interval (but don't sleep on the last iteration)
+                if i < num_commands - 1:
+                    time.sleep(command_interval)
+            
+            print(f"Current command completed. Total time: {time.time() - start_time:.1f}s")
+            
+        except KeyboardInterrupt:
+            print("\nCurrent command interrupted by user")
+            # Send 0 current to stop the motor
+            vesc_lib.vesc_set_current(self.vesc_id, 0.0)
+            print("Motor stopped (0A current sent)")
+    
+    def help_setduty(self):
+        """Help for setduty command"""
+        print("setduty - Set motor duty cycle for specified duration")
+        print("  Sets the motor duty cycle and repeats the command for the specified duration.")
+        print("  WARNING: This command will turn the motor!")
+        print("  Usage: setduty <duty_cycle> [duration]")
+        print("  Parameters:")
+        print("    duty_cycle - Motor duty cycle as a percentage (0-100%)")
+        print("    duration - Duration in seconds (default: 1.0)")
+        print("  Examples:")
+        print("    setduty 50.0              - Set 50% duty cycle for 1 second")
+        print("    setduty 75.0 2.5         - Set 75% duty cycle for 2.5 seconds")
+        print("    setduty 0.0              - Stop motor (0% duty cycle)")
+        print("  Note: Positive duty cycle turns motor forward, negative turns backward.")
+        print("  The command is repeated every 200ms for the specified duration.")
+    
+    def do_setduty(self, arg):
+        """Set motor duty cycle for specified duration"""
+        if not arg:
+            print("Error: setduty requires at least duty_cycle argument")
+            print("Usage: setduty <duty_cycle> [duration]")
+            return
+        
+        args = shlex.split(arg)
+        if len(args) < 1:
+            print("Error: setduty requires at least duty_cycle argument")
+            print("Usage: setduty <duty_cycle> [duration]")
+            return
+        
+        if len(args) > 2:
+            print("Error: Too many arguments")
+            print("Usage: setduty <duty_cycle> [duration]")
+            return
+        
+        # Parse duty cycle
+        try:
+            duty_cycle = float(args[0])
+            if duty_cycle < 0 or duty_cycle > 100:
+                print("Error: Duty cycle must be between 0 and 100%")
+                return
+        except ValueError:
+            print("Error: Duty cycle must be a valid number")
+            return
+        
+        # Parse duration (default to 1.0 second)
+        duration = 1.0
+        if len(args) > 1:
+            try:
+                duration = float(args[1])
+                if duration <= 0:
+                    print("Error: Duration must be positive")
+                    return
+            except ValueError:
+                print("Error: Duration must be a valid number")
+                return
+        
+        # Warn user about motor movement
+        if duty_cycle != 0.0:
+            print("WARNING: This command will turn the motor!")
+            print("Make sure the motor is free to rotate and not connected to any load.")
+            print(f"Duty Cycle: {duty_cycle:.1f}%, Duration: {duration:.1f}s")
+            
+            # Ask for confirmation
+            try:
+                confirm = input("Do you want to continue? (yes/no): ").strip().lower()
+                if confirm not in ['yes', 'y']:
+                    print("Duty cycle setting cancelled.")
+                    return
+            except KeyboardInterrupt:
+                print("\nDuty cycle setting cancelled.")
+                return
+        
+        print(f"Setting motor duty cycle to {duty_cycle:.1f}% for {duration:.1f} seconds...")
+        
+        # Calculate number of commands to send (every 200ms)
+        command_interval = 0.2  # 200ms
+        num_commands = int(duration / command_interval) + 1  # +1 to ensure we cover the full duration
+        
+        start_time = time.time()
+        
+        try:
+            for i in range(num_commands):
+                # Send duty cycle command
+                vesc_lib.vesc_set_duty(self.vesc_id, duty_cycle)
+                
+                # Calculate remaining time
+                elapsed = time.time() - start_time
+                remaining = duration - elapsed
+                
+                if remaining <= 0:
+                    break
+                
+                # Sleep for command interval (but don't sleep on the last iteration)
+                if i < num_commands - 1:
+                    time.sleep(command_interval)
+            
+            print(f"Duty cycle command completed. Total time: {time.time() - start_time:.1f}s")
+            
+        except KeyboardInterrupt:
+            print("\nDuty cycle command interrupted by user")
+            # Send 0 duty cycle to stop the motor
+            vesc_lib.vesc_set_duty(self.vesc_id, 0.0)
+            print("Motor stopped (0% duty cycle sent)")
     
     def help_adc(self):
         """Help for adc command"""
