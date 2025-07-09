@@ -24,7 +24,8 @@ Using this SDK may result in hardware damage or unsafe operation if used imprope
 - **Simple interface** - Just provide a CAN send function
 - **Comprehensive command support** - Major VESC commands and packets implemented
 - **Response parsing** - Support for parsing VESC responses
-- **Python integration** - Python interactive shell included
+- **Shell** - Provides a shell that can be used to interact with a controller
+- **Python integration** - Works well with Python 3.x, see python/ directory
 - **Zephyr 3.x and 4.x support** - Works seamlessly as a Zephyr module, see README.zephyr.md 
 
 ## Supported Commands
