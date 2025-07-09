@@ -149,10 +149,7 @@ class VescMotorParamResponse(ctypes.Structure):
 
 class VescFluxLinkageResponse(ctypes.Structure):
     _fields_ = [
-        ("current", c_float),
-        ("min_rpm", c_float),
-        ("duty", c_float),
-        ("resistance", c_float),
+        ("flux_linkage", c_float),
         ("valid", c_bool)
     ]
 
@@ -209,6 +206,12 @@ class VescStatusMsg6(ctypes.Structure):
         ("valid", c_bool)
     ]
 
+class VescPongResponse(ctypes.Structure):
+    _fields_ = [
+        ("controller_id", c_uint8),
+        ("valid", c_bool)
+    ]
+
 class VescDebugConfig(ctypes.Structure):
     _fields_ = [
         ("level", c_uint8),
@@ -220,10 +223,15 @@ class VescDebugConfig(ctypes.Structure):
 
 class VescDebugStats(ctypes.Structure):
     _fields_ = [
-        ("rx_packets", c_uint32),
-        ("tx_packets", c_uint32),
-        ("rx_errors", c_uint32),
-        ("tx_errors", c_uint32),
+        ("can_tx_count", c_uint32),
+        ("can_rx_count", c_uint32),
+        ("command_count", c_uint32),
+        ("response_count", c_uint32),
+        ("error_count", c_uint32),
+        ("crc_error_count", c_uint32),
+        ("buffer_overflow_count", c_uint32),
+        ("total_tx_bytes", c_uint64),
+        ("total_rx_bytes", c_uint64),
         ("valid", c_bool)
     ]
 
@@ -241,6 +249,7 @@ vesc_lib.vesc_get_decoded_ppm.argtypes = [c_uint8]
 vesc_lib.vesc_get_fw_version.argtypes = [c_uint8]
 vesc_lib.vesc_reboot.argtypes = [c_uint8]
 vesc_lib.vesc_detect_motor_r_l.argtypes = [c_uint8]
+vesc_lib.vesc_ping.argtypes = [c_uint8]
 
 vesc_lib.vesc_parse_get_values.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescValues)]
 vesc_lib.vesc_parse_get_values.restype = c_bool
@@ -264,6 +273,10 @@ vesc_lib.vesc_parse_motor_param_response.restype = c_bool
 vesc_lib.vesc_parse_flux_linkage_response.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescFluxLinkageResponse)]
 vesc_lib.vesc_parse_flux_linkage_response.restype = c_bool
 
+# Add flux linkage detection function
+vesc_lib.vesc_detect_motor_flux_linkage.argtypes = [c_uint8, c_float, c_float, c_float, c_float]
+vesc_lib.vesc_detect_motor_flux_linkage.restype = None
+
 vesc_lib.vesc_parse_status_msg_1.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescStatusMsg1)]
 vesc_lib.vesc_parse_status_msg_1.restype = c_bool
 
@@ -282,6 +295,9 @@ vesc_lib.vesc_parse_status_msg_5.restype = c_bool
 vesc_lib.vesc_parse_status_msg_6.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescStatusMsg6)]
 vesc_lib.vesc_parse_status_msg_6.restype = c_bool
 
+vesc_lib.vesc_parse_pong_response.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescPongResponse)]
+vesc_lib.vesc_parse_pong_response.restype = c_bool
+
 # Add debug configuration functions
 vesc_lib.vesc_debug_configure.argtypes = [ctypes.POINTER(VescDebugConfig)]
 vesc_lib.vesc_debug_configure.restype = c_bool
@@ -289,8 +305,23 @@ vesc_lib.vesc_debug_configure.restype = c_bool
 vesc_lib.vesc_debug_enable.argtypes = [c_uint8, c_uint16]
 vesc_lib.vesc_debug_enable.restype = c_bool
 
+vesc_lib.vesc_debug_disable = vesc_lib.vesc_debug_disable
+vesc_lib.vesc_debug_disable.argtypes = []
+
 vesc_lib.vesc_debug_get_stats.argtypes = [ctypes.POINTER(VescDebugStats)]
 vesc_lib.vesc_debug_get_stats.restype = c_bool
+
+vesc_lib.vesc_debug_get_config.argtypes = [ctypes.POINTER(VescDebugConfig)]
+vesc_lib.vesc_debug_get_config.restype = c_bool
+
+vesc_lib.vesc_debug_reset_stats = vesc_lib.vesc_debug_reset_stats
+vesc_lib.vesc_debug_reset_stats.argtypes = []
+
+vesc_lib.vesc_debug_print_stats = vesc_lib.vesc_debug_print_stats
+vesc_lib.vesc_debug_print_stats.argtypes = []
+
+vesc_lib.vesc_debug_print_buffer_state = vesc_lib.vesc_debug_print_buffer_state
+vesc_lib.vesc_debug_print_buffer_state.argtypes = []
 
 vesc_lib.vesc_get_decoded_chuck = vesc_lib.vesc_get_decoded_chuck
 vesc_lib.vesc_get_decoded_chuck.argtypes = [c_uint8]
@@ -299,6 +330,20 @@ vesc_lib.vesc_set_chuck_data.argtypes = [c_uint8, ctypes.c_void_p]
 vesc_lib.vesc_parse_chuck_values = vesc_lib.vesc_parse_chuck_values
 vesc_lib.vesc_parse_chuck_values.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescChuckValues)]
 vesc_lib.vesc_parse_chuck_values.restype = c_bool
+
+# Debug constants
+VESC_DEBUG_NONE = 0
+VESC_DEBUG_BASIC = 1
+VESC_DEBUG_DETAILED = 2
+VESC_DEBUG_VERBOSE = 3
+
+VESC_DEBUG_CAN = 0x0001
+VESC_DEBUG_COMMANDS = 0x0002
+VESC_DEBUG_RESPONSES = 0x0004
+VESC_DEBUG_BUFFERS = 0x0008
+VESC_DEBUG_ERRORS = 0x0010
+VESC_DEBUG_PERFORMANCE = 0x0020
+VESC_DEBUG_ALL = 0x003F
 
 class VescShell(cmd.Cmd):
     intro = 'VESC CAN Shell. Type help or ? to list commands.'
@@ -323,6 +368,11 @@ class VescShell(cmd.Cmd):
         self.response_data = None
         self.response_command = None
         self.processing_response = False  # Flag to track when we're processing a VESC response
+
+        self.blocking_response_received = threading.Event()
+        self.blocking_response_data = None
+        self.blocking_response_command = None
+        self.blocking_response_timeout = 10.0
         
         # Latest data storage
         self.latest_values = {}
@@ -331,6 +381,8 @@ class VescShell(cmd.Cmd):
         self.latest_ppm_values = None
         self.latest_chuck_values = None
         self.latest_motor_rl = None
+        self.latest_flux_linkage = None
+        self.latest_pong = None
         
         # Status message storage
         self.latest_status_msg1 = None
@@ -385,8 +437,10 @@ class VescShell(cmd.Cmd):
             14: "STATUS_2",
             15: "STATUS_3",
             16: "STATUS_4",
+            17: "PING",
+            18: "PONG",
             25: "DETECT_MOTOR_R_L",
-            27: "STATUS_5",
+            27: "STATUS_5/FLUX_LINKAGE",  # Conflict: both STATUS_5 and DETECT_MOTOR_FLUX_LINKAGE use ID 27
             29: "REBOOT",
             30: "GET_DECODED_ADC",
             31: "GET_DECODED_PPM",
@@ -475,7 +529,56 @@ class VescShell(cmd.Cmd):
         can_id_hex = f"{can_id & 0x1FFFFFFF:x}"
         data_hex = ''.join([f"{b:02x}" for b in data[:length]])
         
-        log_line = f"{timestamp};0;{msg_type};{can_id_hex};{length};{data_hex}\n"
+        # Extract command/packet name if this is a VESC message
+        comment = ""
+        can_id_base = can_id & 0x1FFFFFFF
+        controller_id = can_id_base & 0xFF
+        packet_type = (can_id_base >> 8) & 0xFF
+        
+        # Check if this is a VESC message by looking at the packet type
+        # VESC uses packet types 0-63, so any packet type in this range is a VESC message
+        if packet_type <= 63:
+            # Check if length > 8 - this indicates a summary/buffer dump, not a valid CAN message
+            if length > 8:
+                comment = "SUMMARY"
+            # For PROCESS_RX_BUFFER, always label as such
+            elif packet_type == 7:
+                comment = "PROCESS_RX_BUFFER"
+            # For PROCESS_SHORT_BUFFER, only use command name if data[2] is a valid command
+            elif packet_type == 8:
+                if length > 2:
+                    command_id = data[2]
+                    valid_command_ids = {0, 4, 14, 25, 26, 27, 29, 31, 32, 33, 34, 35, 158}
+                    if command_id in valid_command_ids:
+                        command_name = self._get_command_name(command_id)
+                        comment = command_name
+                    else:
+                        comment = "PROCESS_SHORT_BUFFER"
+                else:
+                    comment = "PROCESS_SHORT_BUFFER"
+            # Check if this is a direct CAN packet
+            else:
+                packet_names = {
+                    0: "SET_DUTY", 1: "SET_CURRENT", 2: "SET_CURRENT_BRAKE", 3: "SET_RPM", 4: "SET_POS",
+                    5: "FILL_RX_BUFFER", 6: "FILL_RX_BUFFER_LONG", 7: "PROCESS_RX_BUFFER", 8: "PROCESS_SHORT_BUFFER",
+                    9: "STATUS_1", 10: "SET_CURRENT_REL", 11: "SET_CURRENT_BRAKE_REL", 12: "SET_CURRENT_HANDBRAKE",
+                    13: "SET_CURRENT_HANDBRAKE_REL", 14: "STATUS_2", 15: "STATUS_3", 16: "STATUS_4",
+                    17: "PING", 18: "PONG", 19: "DETECT_APPLY_ALL_FOC", 20: "DETECT_APPLY_ALL_FOC_RES",
+                    21: "CONF_CURRENT_LIMITS", 22: "CONF_STORE_CURRENT_LIMITS", 23: "CONF_CURRENT_LIMITS_IN",
+                    24: "CONF_STORE_CURRENT_LIMITS_IN", 25: "CONF_FOC_ERPMS", 26: "CONF_STORE_FOC_ERPMS",
+                    27: "STATUS_5", 28: "POLL_TS5700N8501_STATUS", 29: "CONF_BATTERY_CUT", 30: "CONF_STORE_BATTERY_CUT",
+                    31: "SHUTDOWN", 32: "IO_BOARD_ADC_1_TO_4", 33: "IO_BOARD_ADC_5_TO_8", 34: "IO_BOARD_ADC_9_TO_12",
+                    35: "IO_BOARD_DIGITAL_IN", 36: "IO_BOARD_SET_OUTPUT_DIGITAL", 37: "IO_BOARD_SET_OUTPUT_PWM",
+                    38: "BMS_V_TOT", 39: "BMS_I", 40: "BMS_AH_WH", 41: "BMS_V_CELL", 42: "BMS_BAL",
+                    43: "BMS_TEMPS", 44: "BMS_HUM", 45: "BMS_SOC_SOH_TEMP_STAT", 46: "PSW_STAT",
+                    47: "PSW_SWITCH", 48: "BMS_HW_DATA_1", 49: "BMS_HW_DATA_2", 50: "BMS_HW_DATA_3",
+                    51: "BMS_HW_DATA_4", 52: "BMS_HW_DATA_5", 53: "BMS_AH_WH_CHG_TOTAL", 54: "BMS_AH_WH_DIS_TOTAL",
+                    55: "UPDATE_PID_POS_OFFSET", 56: "POLL_ROTOR_POS", 57: "NOTIFY_BOOT", 58: "STATUS_6",
+                    59: "GNSS_TIME", 60: "GNSS_LAT", 61: "GNSS_LON", 62: "GNSS_ALT_SPEED_HDOP", 63: "UPDATE_BAUD"
+                }
+                comment = packet_names.get(packet_type, f"PACKET_{packet_type}")
+        
+        log_line = f"{timestamp};0;{msg_type};{can_id_hex};{length};{data_hex};{comment}\n"
         self.log_file.write(log_line)
         self.log_file.flush()
     
@@ -571,6 +674,10 @@ class VescShell(cmd.Cmd):
                     }
             
             elif command == 25:  # COMM_DETECT_MOTOR_R_L
+                self.blocking_response_received.set()
+                self.blocking_response_data = data_array
+                self.blocking_response_command = command
+
                 motor_rl = VescMotorRLResponse()
                 if vesc_lib.vesc_parse_motor_rl_response(data_array, length, ctypes.byref(motor_rl)):
                     self.latest_motor_rl = {
@@ -578,6 +685,48 @@ class VescShell(cmd.Cmd):
                         'inductance': motor_rl.inductance,
                         'ld_lq_diff': motor_rl.ld_lq_diff
                     }
+            
+            elif command == 27:  # COMM_DETECT_MOTOR_FLUX_LINKAGE or STATUS_5
+                # Distinguish between STATUS_5 and DETECT_MOTOR_FLUX_LINKAGE based on message characteristics
+                # STATUS_5: 8 bytes, starts parsing from index 0 (no command byte)
+                # FLUX_LINKAGE: 4+ bytes, starts parsing from index 1 (has command byte)
+                
+                if length == 8:  # STATUS_5
+                    try:
+                        status5 = VescStatusMsg5()
+                        if vesc_lib.vesc_parse_status_msg_5(data_array, length, ctypes.byref(status5)):
+                            self.latest_status_msg5 = {
+                                'controller_id': status5.controller_id,
+                                'tacho_value': status5.tacho_value,
+                                'v_in': status5.v_in
+                            }
+                            if self.status_listening and (not self.listen_command_filter or command in self.listen_command_filter):
+                                print(f"[Status5] Controller: {status5.controller_id}, "
+                                      f"Tacho: {status5.tacho_value}, V_in: {status5.v_in:.1f}V")
+                    except Exception as e:
+                        if self.verbose:
+                            print(f"[Status5] Error parsing status message: {e}")
+                
+                else:  # DETECT_MOTOR_FLUX_LINKAGE
+                    self.blocking_response_received.set()
+                    self.blocking_response_data = data_array
+                    self.blocking_response_command = command
+
+                    flux_linkage = VescFluxLinkageResponse()
+                    if vesc_lib.vesc_parse_flux_linkage_response(data_array, length, ctypes.byref(flux_linkage)):
+                        self.latest_flux_linkage = {
+                            'flux_linkage': flux_linkage.flux_linkage
+                        }
+            
+            elif command == 18:  # CAN_PACKET_PONG
+                pong = VescPongResponse()
+                if vesc_lib.vesc_parse_pong_response(data_array, length, ctypes.byref(pong)):
+                    self.latest_pong = {
+                        'controller_id': pong.controller_id,
+                        'valid': pong.valid
+                    }
+                    if self.verbose:
+                        print(f"[PONG] VESC#{pong.controller_id} responded to ping")
             
             # Handle status messages
             elif command == 9:  # COMM_GET_STATUS_1
@@ -649,21 +798,7 @@ class VescShell(cmd.Cmd):
                     if self.verbose:
                         print(f"[Status4] Error parsing status message: {e}")
             
-            elif command == 27:  # COMM_GET_STATUS_5
-                try:
-                    status5 = VescStatusMsg5()
-                    if vesc_lib.vesc_parse_status_msg_5(data_array, length, ctypes.byref(status5)):
-                        self.latest_status_msg5 = {
-                            'controller_id': status5.controller_id,
-                            'tacho_value': status5.tacho_value,
-                            'v_in': status5.v_in
-                        }
-                        if self.status_listening and (not self.listen_command_filter or command in self.listen_command_filter):
-                            print(f"[Status5] Controller: {status5.controller_id}, "
-                                  f"Tacho: {status5.tacho_value}, V_in: {status5.v_in:.1f}V")
-                except Exception as e:
-                    if self.verbose:
-                        print(f"[Status5] Error parsing status message: {e}")
+
             
             elif command == 58:  # COMM_GET_STATUS_6
                 try:
@@ -743,17 +878,29 @@ class VescShell(cmd.Cmd):
                 print(f"Unexpected error in monitor loop: {e}")
                 time.sleep(0.1)
     
-    def _wait_for_response(self, timeout: float = 3.0) -> bool:
+    def _wait_for_response(self, timeout: float = 3.0, command_to_wait_for: int = None, is_blocking: bool = False) -> bool:
         """Wait for response with timeout"""
-        self.response_received.clear()
-        self.response_data = None
-        self.response_command = None
-        
-        if self.response_received.wait(timeout):
-            return True
+        if is_blocking:
+            self.blocking_response_received.clear()
+            self.blocking_response_data = None
+            self.blocking_response_command = None
         else:
-            print(f"Timeout waiting for response (after {timeout}s)")
-            return False
+            self.response_received.clear()
+            self.response_data = None
+            self.response_command = None
+        
+        if is_blocking:
+            if self.blocking_response_received.wait(timeout) and (command_to_wait_for is None or self.blocking_response_command == command_to_wait_for):
+                return True
+            else:
+                print(f"Timeout waiting for response (after {timeout}s)")
+                return False
+        else:
+            if self.response_received.wait(timeout) and (command_to_wait_for is None or self.response_command == command_to_wait_for):
+                return True
+            else:
+                print(f"Timeout waiting for response (after {timeout}s)")
+                return False
     
     def _get_firmware_version(self):
         """Get firmware version with timeout"""
@@ -788,12 +935,17 @@ class VescShell(cmd.Cmd):
             print("  chuck           - Get decoded chuck (nunchuk) data")
             print("  setchuck        - Set chuck (nunchuk) data")
             print("  motor_rl        - Detect motor resistance and inductance")
+            print("  flux_linkage    - Detect motor flux linkage [current] [min_rpm] [duty]")
             print("  fw_version      - Get firmware version")
             print("  reboot          - Reboot the VESC controller")
+            print("  ping            - Send PING to VESC and wait for PONG response")
             print("  raw_can         - Send raw CAN message")
             print("  listen          - Listen for VESC status messages (1-6, with optional filtering)")
             print("  verbose         - Toggle verbose logging of raw CAN messages")
             print("  logging         - Toggle CAN message logging to file")
+            print("  debug           - Enable/disable SDK debugging")
+            print("  debug_stats     - Show SDK debug statistics")
+            print("  debug_reset     - Reset SDK debug statistics")
             print("  quit/exit       - Exit the shell")
             print("\nType 'help <command>' for detailed help on a specific command.")
     
@@ -901,16 +1053,156 @@ class VescShell(cmd.Cmd):
         print("Detecting motor R/L parameters (this may take up to 20 seconds)...")
         vesc_lib.vesc_detect_motor_r_l(self.vesc_id)
         
-        if self._wait_for_response(20.0):
+        if self._wait_for_response(20.0, command_to_wait_for=25, is_blocking=True):
             if self.latest_motor_rl:
                 print(f"\nMotor R/L Detection Results:")
                 print(f"  Resistance: {self.latest_motor_rl['resistance']:.6f}Ω")
-                print(f"  Inductance: {self.latest_motor_rl['inductance']:.8f}H")
-                print(f"  Ld-Lq Difference: {self.latest_motor_rl['ld_lq_diff']:.8f}H")
+                print(f"  Inductance: {self.latest_motor_rl['inductance']:.8f}µH")
+                print(f"  Ld-Lq Difference: {self.latest_motor_rl['ld_lq_diff']:.8f}µH")
             else:
                 print("Failed to parse motor R/L values")
         else:
             print("Failed to get motor R/L values")
+    
+    def help_flux_linkage(self):
+        """Help for flux_linkage command"""
+        print("flux_linkage - Detect motor flux linkage")
+        print("  Performs motor flux linkage detection (takes up to 20 seconds).")
+        print("  WARNING: This command will turn the motor!")
+        print("  Requires motor R/L values to be available (run 'motor_rl' first).")
+        print("  Waits up to 20 seconds for response.")
+        print("  Usage: flux_linkage [current] [min_rpm] [duty]")
+        print("  Parameters:")
+        print("    current  - Detection current in Amperes (default: 5.0A, range: 1-20A)")
+        print("    min_rpm  - Minimum RPM for detection (default: 1000, range: 100-5000)")
+        print("    duty     - Duty cycle for detection (default: 0.1 = 10%, range: 0.05-0.3)")
+        print("  Examples:")
+        print("    flux_linkage                    - Use default values")
+        print("    flux_linkage 3.0                - 3A current, default RPM/duty")
+        print("    flux_linkage 3.0 500            - 3A current, 500 RPM, default duty")
+        print("    flux_linkage 3.0 500 0.05       - 3A current, 500 RPM, 5% duty")
+        print("  Note: Lower current and RPM values are safer but may take longer.")
+    
+    def do_flux_linkage(self, arg):
+        """Detect motor flux linkage"""
+        # Parse arguments
+        args = shlex.split(arg) if arg else []
+        
+        # Set default values
+        current = 5.0  # 5A detection current
+        min_rpm = 1000.0  # 1000 RPM minimum
+        duty = 0.1  # 10% duty cycle
+        
+        # Parse provided arguments
+        if len(args) > 0:
+            try:
+                current = float(args[0])
+                if current <= 0:
+                    print("Error: Current must be positive")
+                    return
+                if current > 20:
+                    print("Warning: Current > 20A may be dangerous. Continue anyway? (yes/no): ", end="")
+                    try:
+                        if input().strip().lower() not in ['yes', 'y']:
+                            print("Flux linkage detection cancelled.")
+                            return
+                    except KeyboardInterrupt:
+                        print("\nFlux linkage detection cancelled.")
+                        return
+            except ValueError:
+                print("Error: Current must be a valid number")
+                return
+        
+        if len(args) > 1:
+            try:
+                min_rpm = float(args[1])
+                if min_rpm <= 0:
+                    print("Error: Min RPM must be positive")
+                    return
+                if min_rpm > 5000:
+                    print("Warning: Min RPM > 5000 may be dangerous. Continue anyway? (yes/no): ", end="")
+                    try:
+                        if input().strip().lower() not in ['yes', 'y']:
+                            print("Flux linkage detection cancelled.")
+                            return
+                    except KeyboardInterrupt:
+                        print("\nFlux linkage detection cancelled.")
+                        return
+            except ValueError:
+                print("Error: Min RPM must be a valid number")
+                return
+        
+        if len(args) > 2:
+            try:
+                duty = float(args[2])
+                if duty <= 0 or duty > 1:
+                    print("Error: Duty cycle must be between 0 and 1")
+                    return
+                if duty > 0.3:
+                    print("Warning: Duty cycle > 30% may be dangerous. Continue anyway? (yes/no): ", end="")
+                    try:
+                        if input().strip().lower() not in ['yes', 'y']:
+                            print("Flux linkage detection cancelled.")
+                            return
+                    except KeyboardInterrupt:
+                        print("\nFlux linkage detection cancelled.")
+                        return
+            except ValueError:
+                print("Error: Duty cycle must be a valid number")
+                return
+        
+        if len(args) > 3:
+            print("Error: Too many arguments")
+            print("Usage: flux_linkage [current] [min_rpm] [duty]")
+            return
+        
+        # Check if motor R/L values are available
+        if not self.latest_motor_rl:
+            print("Error: Motor R/L values not available.")
+            print("Please run 'motor_rl' command first to detect motor resistance and inductance.")
+            return
+        
+        # Warn user about motor movement
+        print("WARNING: This command will turn the motor!")
+        print("Make sure the motor is free to rotate and not connected to any load.")
+        print("The motor will be driven with current to measure flux linkage.")
+        
+        # Show parameters that will be used
+        print(f"\nParameters to be used:")
+        print(f"  Current: {current:.1f}A")
+        print(f"  Min RPM: {min_rpm:.0f}")
+        print(f"  Duty Cycle: {duty*100:.1f}%")
+        print(f"  Motor Resistance: {self.latest_motor_rl['resistance']:.6f}Ω")
+        
+        # Ask for confirmation
+        try:
+            confirm = input("\nDo you want to continue? (yes/no): ").strip().lower()
+            if confirm not in ['yes', 'y']:
+                print("Flux linkage detection cancelled.")
+                return
+        except KeyboardInterrupt:
+            print("\nFlux linkage detection cancelled.")
+            return
+        
+        print("Detecting motor flux linkage (this may take up to 20 seconds)...")
+        
+        # Call the flux linkage detection function with user-specified parameters
+        resistance = self.latest_motor_rl['resistance']
+        vesc_lib.vesc_detect_motor_flux_linkage(self.vesc_id, current, min_rpm, duty, resistance)
+        
+        if self._wait_for_response(20.0, command_to_wait_for=27, is_blocking=True):
+            if self.latest_flux_linkage:
+                print(f"\nMotor Flux Linkage Detection Results:")
+                print(f"  Flux Linkage: {self.latest_flux_linkage['flux_linkage']:.8f} Wb")
+                print(f"  Parameters used:")
+                print(f"    Current: {current:.1f}A")
+                print(f"    Min RPM: {min_rpm:.0f}")
+                print(f"    Duty Cycle: {duty*100:.1f}%")
+                print(f"    Motor Resistance: {resistance:.6f}Ω")
+            else:
+                print("Failed to parse flux linkage values")
+        else:
+            print("Failed to get flux linkage values")
     
     def help_fw_version(self):
         """Help for fw_version command"""
@@ -949,6 +1241,48 @@ class VescShell(cmd.Cmd):
         
         print("Reboot command sent successfully.")
         print("The VESC controller should restart momentarily.")
+    
+    def help_ping(self):
+        """Help for ping command"""
+        print("ping - Send PING to VESC and wait for PONG response")
+        print("  Sends a PING packet to the VESC controller and waits for a PONG response.")
+        print("  This is useful to check if the VESC is present and responding on the CAN bus.")
+        print("  Waits up to 3 seconds for response.")
+        print("  Usage: ping [controller_id]")
+        print("  Example: ping 1    - Ping VESC with ID 1")
+        print("  Example: ping      - Ping VESC with default ID")
+    
+    def do_ping(self, arg):
+        """Send PING to VESC and wait for PONG response"""
+        # Parse controller ID from argument, use default if not provided
+        controller_id = self.vesc_id
+        if arg:
+            try:
+                controller_id = int(arg)
+                if controller_id < 0 or controller_id > 255:
+                    print("Error: controller ID must be between 0 and 255")
+                    return
+            except ValueError:
+                print("Error: controller ID must be a number")
+                return
+        
+        print(f"Sending PING to VESC#{controller_id}...")
+        
+        # Clear any previous PONG response
+        self.latest_pong = None
+        
+        # Send PING
+        vesc_lib.vesc_ping(controller_id)
+        
+        # Wait for PONG response
+        if self._wait_for_response(3.0):
+            if self.latest_pong and self.latest_pong['valid']:
+                print(f"✓ PONG received from VESC#{self.latest_pong['controller_id']}")
+            else:
+                print("✗ PONG response received but failed to parse")
+        else:
+            print("✗ No PONG response received (timeout after 3 seconds)")
+            print(f"  VESC#{controller_id} may not be present or not responding on the CAN bus")
     
     def help_raw_can(self):
         """Help for raw_can command"""
@@ -1095,10 +1429,10 @@ class VescShell(cmd.Cmd):
         if self.logging_enabled:
             # Disable logging
             if self.log_file:
+                print(f"CAN logging disabled, find your log file at: {self.log_file.name}")
                 self.log_file.close()
                 self.log_file = None
             self.logging_enabled = False
-            print("CAN logging disabled")
         else:
             # Enable logging
             timestamp = self.session_start_time.strftime("%Y%m%d_%H%M%S")
@@ -1124,13 +1458,193 @@ class VescShell(cmd.Cmd):
                 self.log_file.write(f"# Bit-rate: {self.baudrate}\n")
                 self.log_file.write("# Silent mode: false\n")
                 self.log_file.write("# Cyclic mode: false\n")
-                self.log_file.write("Timestamp;Lost;Type;ID;Length;Data\n")
+                self.log_file.write("Timestamp;Lost;Type;ID;Length;Data;Comment\n")
                 
                 self.logging_enabled = True
                 print(f"CAN logging enabled: {log_filename}")
                 
             except Exception as e:
                 print(f"Error enabling logging: {e}")
+    
+    def help_debug(self):
+        """Help for debug command"""
+        print("debug - Enable/disable SDK debugging")
+        print("  Enables or disables debugging output from the VESC CAN SDK.")
+        print("  Usage: debug [level] [categories]")
+        print("  Parameters:")
+        print("    level     - Debug level: none(0), basic(1), detailed(2), verbose(3)")
+        print("    categories - Debug categories (space-separated):")
+        print("                 can, commands, responses, buffers, errors, performance, all")
+        print("  Examples:")
+        print("    debug                    - Show current debug status")
+        print("    debug basic can          - Enable basic CAN debugging")
+        print("    debug detailed all       - Enable detailed debugging for all categories")
+        print("    debug verbose commands   - Enable verbose command debugging")
+        print("    debug none               - Disable all debugging")
+        print("  Debug Levels:")
+        print("    none(0)     - No debug output")
+        print("    basic(1)    - Basic debug information")
+        print("    detailed(2) - Detailed debug information with hex dumps")
+        print("    verbose(3)  - Very detailed debug information")
+        print("  Debug Categories:")
+        print("    can         - CAN communication (TX/RX)")
+        print("    commands    - Command sending")
+        print("    responses   - Response parsing")
+        print("    buffers     - Buffer management")
+        print("    errors      - Error conditions")
+        print("    performance - Performance metrics")
+        print("    all         - All categories")
+    
+    def do_debug(self, arg):
+        """Enable/disable SDK debugging"""
+        if not arg:
+            # Show current debug status
+            config = VescDebugConfig()
+            if vesc_lib.vesc_debug_get_config(ctypes.byref(config)):
+                level_names = {VESC_DEBUG_NONE: "none", VESC_DEBUG_BASIC: "basic", 
+                              VESC_DEBUG_DETAILED: "detailed", VESC_DEBUG_VERBOSE: "verbose"}
+                level_name = level_names.get(config.level, f"unknown({config.level})")
+                
+                category_names = []
+                if config.categories & VESC_DEBUG_CAN:
+                    category_names.append("can")
+                if config.categories & VESC_DEBUG_COMMANDS:
+                    category_names.append("commands")
+                if config.categories & VESC_DEBUG_RESPONSES:
+                    category_names.append("responses")
+                if config.categories & VESC_DEBUG_BUFFERS:
+                    category_names.append("buffers")
+                if config.categories & VESC_DEBUG_ERRORS:
+                    category_names.append("errors")
+                if config.categories & VESC_DEBUG_PERFORMANCE:
+                    category_names.append("performance")
+                
+                if config.level == VESC_DEBUG_NONE:
+                    print("Debug status: Disabled")
+                else:
+                    print(f"Debug status: Enabled (level={level_name}, categories={', '.join(category_names)})")
+            else:
+                print("Debug status: Unknown (failed to get configuration)")
+            print("Use 'debug <level> <categories>' to change debugging")
+            return
+        
+        args = shlex.split(arg)
+        
+        # Parse debug level
+        level = VESC_DEBUG_BASIC  # Default to basic
+        if args[0].lower() in ['none', '0']:
+            level = VESC_DEBUG_NONE
+        elif args[0].lower() in ['basic', '1']:
+            level = VESC_DEBUG_BASIC
+        elif args[0].lower() in ['detailed', '2']:
+            level = VESC_DEBUG_DETAILED
+        elif args[0].lower() in ['verbose', '3']:
+            level = VESC_DEBUG_VERBOSE
+        else:
+            print(f"Error: Invalid debug level '{args[0]}'")
+            print("Valid levels: none(0), basic(1), detailed(2), verbose(3)")
+            return
+        
+        # Parse debug categories
+        categories = 0
+        if len(args) > 1:
+            for category_arg in args[1:]:
+                category_arg = category_arg.lower()
+                if category_arg == 'can':
+                    categories |= VESC_DEBUG_CAN
+                elif category_arg == 'commands':
+                    categories |= VESC_DEBUG_COMMANDS
+                elif category_arg == 'responses':
+                    categories |= VESC_DEBUG_RESPONSES
+                elif category_arg == 'buffers':
+                    categories |= VESC_DEBUG_BUFFERS
+                elif category_arg == 'errors':
+                    categories |= VESC_DEBUG_ERRORS
+                elif category_arg == 'performance':
+                    categories |= VESC_DEBUG_PERFORMANCE
+                elif category_arg == 'all':
+                    categories = VESC_DEBUG_ALL
+                else:
+                    print(f"Error: Invalid debug category '{category_arg}'")
+                    print("Valid categories: can, commands, responses, buffers, errors, performance, all")
+                    return
+        else:
+            # Default to all categories if none specified
+            categories = VESC_DEBUG_ALL
+        
+        # Enable or disable debugging
+        if level == VESC_DEBUG_NONE:
+            vesc_lib.vesc_debug_disable()
+            print("Debugging disabled")
+        else:
+            if vesc_lib.vesc_debug_enable(level, categories):
+                level_names = {VESC_DEBUG_NONE: "none", VESC_DEBUG_BASIC: "basic", 
+                              VESC_DEBUG_DETAILED: "detailed", VESC_DEBUG_VERBOSE: "verbose"}
+                category_names = []
+                if categories & VESC_DEBUG_CAN:
+                    category_names.append("can")
+                if categories & VESC_DEBUG_COMMANDS:
+                    category_names.append("commands")
+                if categories & VESC_DEBUG_RESPONSES:
+                    category_names.append("responses")
+                if categories & VESC_DEBUG_BUFFERS:
+                    category_names.append("buffers")
+                if categories & VESC_DEBUG_ERRORS:
+                    category_names.append("errors")
+                if categories & VESC_DEBUG_PERFORMANCE:
+                    category_names.append("performance")
+                
+                print(f"Debugging enabled: level={level_names[level]}, categories={', '.join(category_names)}")
+            else:
+                print("Error: Failed to enable debugging")
+    
+    def help_debug_stats(self):
+        """Help for debug_stats command"""
+        print("debug_stats - Show SDK debug statistics")
+        print("  Displays statistics collected by the VESC CAN SDK debug system.")
+        print("  Usage: debug_stats")
+        print("  Statistics include:")
+        print("    - CAN transmit/receive counts")
+        print("    - Commands sent and responses received")
+        print("    - Error counts (CRC errors, buffer overflows)")
+        print("    - Total bytes transmitted/received")
+    
+    def do_debug_stats(self, arg):
+        """Show SDK debug statistics"""
+        if arg:
+            print("Error: debug_stats command takes no arguments")
+            return
+        
+        # Get debug statistics
+        stats = VescDebugStats()
+        if vesc_lib.vesc_debug_get_stats(ctypes.byref(stats)):
+            print("\nVESC CAN SDK Debug Statistics:")
+            print(f"  CAN Transmit Count: {stats.can_tx_count}")
+            print(f"  CAN Receive Count: {stats.can_rx_count}")
+            print(f"  Commands Sent: {stats.command_count}")
+            print(f"  Responses Received: {stats.response_count}")
+            print(f"  Total Errors: {stats.error_count}")
+            print(f"  CRC Errors: {stats.crc_error_count}")
+            print(f"  Buffer Overflows: {stats.buffer_overflow_count}")
+            print(f"  Total TX Bytes: {stats.total_tx_bytes}")
+            print(f"  Total RX Bytes: {stats.total_rx_bytes}")
+        else:
+            print("Error: Failed to get debug statistics")
+    
+    def help_debug_reset(self):
+        """Help for debug_reset command"""
+        print("debug_reset - Reset SDK debug statistics")
+        print("  Resets all debug statistics counters to zero.")
+        print("  Usage: debug_reset")
+    
+    def do_debug_reset(self, arg):
+        """Reset SDK debug statistics"""
+        if arg:
+            print("Error: debug_reset command takes no arguments")
+            return
+        
+        vesc_lib.vesc_debug_reset_stats()
+        print("Debug statistics reset")
     
 
     
