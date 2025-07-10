@@ -286,7 +286,7 @@ static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len)
         uint8_t command = data[0];
         
         // Send first 255 bytes in 7-byte chunks
-        for (uint32_t i = 0; i < len; i += 7) {
+        for (unsigned int i = 0; i < len; i += 7) {
             if (i > 255) {
                 break;
             }
@@ -327,7 +327,7 @@ static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len)
         int32_t index = 0;
         memset(send_buffer, 0, sizeof(send_buffer));
         send_buffer[index++] = sdk_state.sender_id;  // Use sender ID for first byte
-        send_buffer[index++] = 0;  // Flag to indicate if a result should be sent (possible values: 0, 1, 2, 3 default is 0)
+        send_buffer[index++] = 0;  // Command should be processed by the receiver
         send_buffer[index++] = (uint8_t)(len >> 8);
         send_buffer[index++] = (uint8_t)(len & 0xFF);
 
@@ -344,7 +344,7 @@ static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len)
         }
         
         uint32_t can_id = controller_id | ((uint32_t)CAN_PACKET_PROCESS_RX_BUFFER << 8);
-        vesc_can_send_packet(can_id, send_buffer, index);
+        vesc_can_send_packet(can_id, send_buffer, index++);
     }
 }
 
