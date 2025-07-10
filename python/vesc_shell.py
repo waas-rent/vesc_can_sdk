@@ -1093,7 +1093,7 @@ class VescShell(cmd.Cmd):
         resistance = self.latest_motor_rl['resistance']
         vesc_lib.vesc_detect_motor_flux_linkage(self.vesc_id, current, min_rpm, duty, resistance)
         
-        if self._wait_for_response(20.0, command_to_wait_for=27, is_blocking=True):
+        if self._wait_for_response(12.0, command_to_wait_for=26, is_blocking=True):
             if self.latest_flux_linkage:
                 print(f"\nMotor Flux Linkage Detection Results:")
                 print(f"  Flux Linkage: {self.latest_flux_linkage['flux_linkage']:.8f} Wb")
