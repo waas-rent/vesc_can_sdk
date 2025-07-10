@@ -258,6 +258,15 @@ static bool vesc_can_send_packet(uint32_t id, uint8_t *data, uint8_t len) {
  */
 static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len) {
     if (len <= 6) {
+        // Calculate CRC for the payload
+        uint8_t index = len;
+        uint16_t crc = vesc_crc16(data, len);
+        data[index++] = (uint8_t)(crc >> 8);
+        data[index++] = (uint8_t)(crc & 0xFF);
+
+        // Append stop byte (char 3)
+        data[index++] = 3;
+
         // Buffer command structure is as follows for short buffer:
         // 0: identifier of sending controller
         // 1: flag to indicate if a result should be sent (possible values: 0, 1, 2, default is 0)
@@ -265,14 +274,16 @@ static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len)
         uint8_t short_buffer[8];
         short_buffer[0] = sdk_state.sender_id;  // Use sender ID for first byte
         short_buffer[1] = 0;  // Flag to indicate if a result should be sent (possible values: 0, 1, 2, default is 0)
-        memcpy(short_buffer + 2, data, len);
+        memcpy(short_buffer + 2, data, index);
         
         uint32_t can_id = controller_id | ((uint32_t)CAN_PACKET_PROCESS_SHORT_BUFFER << 8);
-        vesc_can_send_packet(can_id, short_buffer, len + 1);
+        vesc_can_send_packet(can_id, short_buffer, index + 1);
     } else {
         // Long packet - fragment
         uint8_t send_buffer[8];
         uint32_t end_a = 0;
+
+        uint8_t command = data[0];
         
         // Send first 255 bytes in 7-byte chunks
         for (uint32_t i = 0; i < len; i += 7) {
@@ -314,13 +325,23 @@ static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len)
         
         // Send process command
         int32_t index = 0;
+        memset(send_buffer, 0, sizeof(send_buffer));
         send_buffer[index++] = sdk_state.sender_id;  // Use sender ID for first byte
-        send_buffer[index++] = 0;  // Flag to indicate if a result should be sent (possible values: 0, 1, 2, default is 0)
-        send_buffer[index++] = len >> 8;
-        send_buffer[index++] = len & 0xFF;
+        send_buffer[index++] = 0;  // Flag to indicate if a result should be sent (possible values: 0, 1, 2, 3 default is 0)
+        send_buffer[index++] = (uint8_t)(len >> 8);
+        send_buffer[index++] = (uint8_t)(len & 0xFF);
+
         uint16_t crc = vesc_crc16(data, len);
         send_buffer[index++] = (uint8_t)(crc >> 8);
         send_buffer[index++] = (uint8_t)(crc & 0xFF);
+
+        if (vesc_debug_category_enabled(VESC_DEBUG_CAN)) {
+            uint16_t length = (send_buffer[2] << 8) | send_buffer[3];
+            uint16_t crc_rx = (send_buffer[4] << 8) | send_buffer[5];
+            const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+            vesc_debug_output("[%s] Finalizing packet: VESC#%d %s \n(payload=%d bytes, total_for_this_packet=%d bytes, \n\tsend_buffer_byte_1=0x%02X, \n\tsend_buffer_byte_2=0x%02X, \n\tsend_buffer_byte_3=0x%02X, \n\tsend_buffer_byte_4=0x%02X, \n\tlength_calculated=%d, \n\tcrc_calculated=0x%04X, \n\tcrc_rx=0x%04X)\n", 
+                             timestamp, controller_id, vesc_debug_get_command_name(command), (int)len, (int)len, send_buffer[1], send_buffer[2], send_buffer[3], send_buffer[4], length, crc, crc_rx);
+        }
         
         uint32_t can_id = controller_id | ((uint32_t)CAN_PACKET_PROCESS_RX_BUFFER << 8);
         vesc_can_send_packet(can_id, send_buffer, index);
@@ -704,20 +725,12 @@ static void vesc_send_command(uint8_t controller_id, uint8_t *data, uint32_t len
     memcpy(buffer, data, len);
     index += len;
 
-    // Calculate CRC for the payload
-    uint16_t crc = vesc_crc16(data, len);
-    buffer[index++] = (uint8_t)(crc >> 8);
-    buffer[index++] = (uint8_t)(crc & 0xFF);
-
-    // Append stop byte (char 3)
-    buffer[index++] = 3;
-
     // Debug output for command sending
     if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS) && len > 0) {
         const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
         const char *command_name = vesc_debug_get_command_name(data[0]);
-        vesc_debug_output("[%s] Sending Command: VESC#%d %s (payload=%d bytes, total=%d bytes, crc=0x%04X)\n", 
-                         timestamp, controller_id, command_name, (int)len, index, crc);
+        vesc_debug_output("[%s] Sending Command: VESC#%d %s (payload=%d bytes, total=%d bytes)\n", 
+                         timestamp, controller_id, command_name, (int)len, index);
         
         if (debug_state.config.level >= VESC_DEBUG_VERBOSE) {
             vesc_debug_hex_dump("  Full Packet: ", buffer, index);
