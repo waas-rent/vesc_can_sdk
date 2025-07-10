@@ -659,8 +659,11 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
                 printf("Buffer underflow: len=%d\n", len);
                 return;
             }
-            //uint8_t last_identifier_of_controller = data[0];
-            uint8_t command = data[1];
+
+            int index = 0;
+            index++; // ignore controller_id
+            index++; // ignore send_command_flag
+            uint8_t command = data[index++];
 
             // Debug output for short buffer response
             if (vesc_debug_category_enabled(VESC_DEBUG_RESPONSES)) {
@@ -680,7 +683,7 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
             }
 
             if (sdk_state.response_callback) {
-                sdk_state.response_callback(controller_id, command, data + 1, len - 1);
+                sdk_state.response_callback(controller_id, command, data + index, len - 3);
             } else {
                 printf("No response callback: len=%d\n", len);
             }

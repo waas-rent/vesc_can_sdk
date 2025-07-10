@@ -178,8 +178,7 @@ class VescShell(cmd.Cmd):
                 try:
                     data_bytes = bytes(data_ptr[:length])
                     can_id = id | 0x80000000  # Extended frame
-                    padded_data = data_bytes + b'\x00' * (8 - length)
-                    can_msg = can.Message(arbitration_id=can_id, data=padded_data, is_extended_id=True, dlc=length)
+                    can_msg = can.Message(arbitration_id=can_id, data=data_bytes, is_extended_id=True, dlc=length)
                     
                     if self.verbose:
                         # Extract command from first byte if available
@@ -384,12 +383,19 @@ class VescShell(cmd.Cmd):
                     }
                 else:
                     print("Something went wrong when trying to parse motor r/l response")
+
+            elif command == 26: # DETECT_MOTOR_FLUX
+                self.blocking_response_received.set()
+                self.blocking_response_data = data_array
+                self.blocking_response_command = command
+
+                flux_linkage = VescFluxLinkageResponse()
+                if vesc_lib.vesc_parse_flux_linkage_response(data_array, length, ctypes.byref(flux_linkage)):
+                    self.latest_flux_linkage = {
+                        'flux_linkage': flux_linkage.flux_linkage
+                    }
             
-            elif command == 27:  # COMM_DETECT_MOTOR_FLUX_LINKAGE or STATUS_5
-                # Distinguish between STATUS_5 and DETECT_MOTOR_FLUX_LINKAGE based on message characteristics
-                # STATUS_5: 8 bytes, starts parsing from index 0 (no command byte)
-                # FLUX_LINKAGE: 4+ bytes, starts parsing from index 1 (has command byte)
-                
+            elif command == 27:  # DETECT_ENCODER or STATUS_5
                 if length == 8:  # STATUS_5
                     try:
                         status5 = VescStatusMsg5()
@@ -993,7 +999,7 @@ class VescShell(cmd.Cmd):
         # Parse arguments
         args = shlex.split(arg) if arg else []
 
-        if args[0] == "debug":
+        if args and args[0] == "debug":
             print("Debug command with 10A, 2000RPM, 30% duty and 0.026479Ω resistance")
             self.do_debug("verbose all")
             vesc_lib.vesc_detect_motor_flux_linkage(self.vesc_id, 10.0, 2000, 0.3, 0.026479)
@@ -1004,7 +1010,7 @@ class VescShell(cmd.Cmd):
         current = 5.0  # 5A detection current
         min_rpm = 1000.0  # 1000 RPM minimum
         duty = 0.1  # 10% duty cycle
-        
+
         # Parse provided arguments
         if len(args) > 0:
             try:
