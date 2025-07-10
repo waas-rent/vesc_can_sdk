@@ -179,7 +179,7 @@ class VescShell(cmd.Cmd):
                     data_bytes = bytes(data_ptr[:length])
                     can_id = id | 0x80000000  # Extended frame
                     padded_data = data_bytes + b'\x00' * (8 - length)
-                    can_msg = can.Message(arbitration_id=can_id, data=padded_data, is_extended_id=True)
+                    can_msg = can.Message(arbitration_id=can_id, data=padded_data, is_extended_id=True, dlc=length)
                     
                     if self.verbose:
                         # Extract command from first byte if available
@@ -382,6 +382,8 @@ class VescShell(cmd.Cmd):
                         'inductance': motor_rl.inductance,
                         'ld_lq_diff': motor_rl.ld_lq_diff
                     }
+                else:
+                    print("Something went wrong when trying to parse motor r/l response")
             
             elif command == 27:  # COMM_DETECT_MOTOR_FLUX_LINKAGE or STATUS_5
                 # Distinguish between STATUS_5 and DETECT_MOTOR_FLUX_LINKAGE based on message characteristics
@@ -573,7 +575,7 @@ class VescShell(cmd.Cmd):
                 pass
             except Exception as e:
                 print(f"Unexpected error in monitor loop: {e}")
-                time.sleep(0.1)
+                break
     
     def _wait_for_response(self, timeout: float = 3.0, command_to_wait_for: int = None, is_blocking: bool = False) -> bool:
         """Wait for response with timeout"""
@@ -963,7 +965,7 @@ class VescShell(cmd.Cmd):
                 print(f"  Inductance: {self.latest_motor_rl['inductance']:.8f}µH")
                 print(f"  Ld-Lq Difference: {self.latest_motor_rl['ld_lq_diff']:.8f}µH")
             else:
-                print("Failed to parse motor R/L values")
+                print("Did not receive motor values yet")
         else:
             print("Failed to get motor R/L values")
     
