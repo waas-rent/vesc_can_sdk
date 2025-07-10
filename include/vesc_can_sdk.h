@@ -89,8 +89,8 @@ typedef struct {
 #define COMM_REBOOT                29
 #define COMM_GET_VALUES_SETUP      47
 #define COMM_DETECT_MOTOR_R_L      25
-#define COMM_DETECT_MOTOR_PARAM    26
-#define COMM_DETECT_MOTOR_FLUX_LINKAGE 27
+#define COMM_DETECT_MOTOR_PARAM    24
+#define COMM_DETECT_MOTOR_FLUX_LINKAGE 26
 #define COMM_GET_DECODED_ADC       32
 #define COMM_GET_DECODED_PPM       31
 #define COMM_GET_DECODED_CHUK      33
