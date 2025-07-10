@@ -990,6 +990,13 @@ class VescShell(cmd.Cmd):
         """Detect motor flux linkage"""
         # Parse arguments
         args = shlex.split(arg) if arg else []
+
+        if args[0] == "debug":
+            print("Debug command with 10A, 2000RPM, 30% duty and 0.026479Ω resistance")
+            self.do_debug("verbose all")
+            vesc_lib.vesc_detect_motor_flux_linkage(self.vesc_id, 10.0, 2000, 0.3, 0.026479)
+            self.do_debug("none")
+            return
         
         # Set default values
         current = 5.0  # 5A detection current
