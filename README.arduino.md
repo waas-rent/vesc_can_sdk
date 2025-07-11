@@ -47,7 +47,7 @@ The VESC CAN SDK enables Arduino to communicate with VESC motor controllers over
 
 ### 1. Download the SDK
 ```bash
-git clone https://github.com/your-repo/vesc_can_sdk.git
+git clone https://github.com/waas/vesc_can_sdk.git
 ```
 
 ### 2. Copy SDK Files to Arduino Project
