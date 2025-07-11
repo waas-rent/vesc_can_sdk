@@ -5,6 +5,7 @@ A pure C SDK for communicating with VESC controllers over CAN bus. This SDK prov
 Use cases for this SDK include but are not limited to
 
 - Custom Firmware that wants to control a VESC controller such as VESC EDU, VESC Express, Maxim or Flipsky
+- Arduino integration
 - Accessing VESC information when not being able to use VESC tool (see Python shell)
 - General integration into other software
 
