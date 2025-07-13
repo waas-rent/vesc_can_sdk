@@ -802,7 +802,6 @@ uint8_t vesc_get_sender_controller_id(void) {
 void vesc_process_can_frame(uint32_t id, uint8_t *data, uint8_t len) {
     // Add defensive checks for the main entry point
     if (!sdk_state.initialized) {
-        printf("ERROR: VESC SDK not initialized\n");
         return;
     }
     
