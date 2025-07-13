@@ -57,6 +57,8 @@ typedef struct {
     vesc_rx_buffer_t rx_buffers[VESC_RX_BUFFER_NUM];
     uint8_t receiver_controller_id;  // Receiver controller ID (used in CAN ID field)
     uint8_t sender_id;               // Sender controller ID (used in buffer protocol first byte)
+    vesc_motor_rl_response_t motor_rl_response; // Internal storage for motor R/L detection response
+    vesc_flux_linkage_response_t flux_linkage_response; // Internal storage for flux linkage detection response
     bool initialized;
 #ifdef _WIN32
     CRITICAL_SECTION mutex;
@@ -348,6 +350,16 @@ static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len)
     }
 }
 
+static void vesc_process_can_frame_and_store_information(uint32_t controller_id, uint8_t command, uint8_t *data, uint8_t len) {
+    (void)controller_id;
+    // Results for motor_r_l and flux_linkage detection should be stored internally
+    if (command == COMM_DETECT_MOTOR_R_L) {
+        vesc_parse_motor_rl_response(data, len, &sdk_state.motor_rl_response);
+    } else if (command == COMM_DETECT_MOTOR_FLUX_LINKAGE) {
+        vesc_parse_flux_linkage_response(data, len, &sdk_state.flux_linkage_response);
+    } 
+}
+
 /**
  * Process received CAN frame
  */
@@ -613,15 +625,16 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
                     }
 
                     // Valid packet - call callback
-                    if (sdk_state.response_callback) {
-                        // Add safety check for callback parameters
-                        if (buf_idx >= 0 && buf_idx < VESC_RX_BUFFER_NUM && length <= VESC_RX_BUFFER_SIZE) {
-                            sdk_state.response_callback(controller_id, command, 
-                                                       sdk_state.rx_buffers[buf_idx].buffer, length);
-                        } else {
-                            printf("ERROR: Invalid buffer access in callback (buf_idx=%d, length=%d)\n", 
-                                   buf_idx, length);
+                    if (buf_idx >= 0 && buf_idx < VESC_RX_BUFFER_NUM && length <= VESC_RX_BUFFER_SIZE) {
+                        vesc_process_can_frame_and_store_information(controller_id, command, sdk_state.rx_buffers[buf_idx].buffer, length);
+                        if (sdk_state.response_callback) {
+                            // Add safety check for callback parameters
+                                sdk_state.response_callback(controller_id, command, 
+                                                        sdk_state.rx_buffers[buf_idx].buffer, length);
                         }
+                    } else {
+                        printf("ERROR: Invalid buffer access in callback (buf_idx=%d, length=%d)\n", 
+                                buf_idx, length);
                     }
                     
                 } else {
@@ -682,6 +695,7 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
                 }
             }
 
+            vesc_process_can_frame_and_store_information(controller_id, packet_type, data, len);
             if (sdk_state.response_callback) {
                 sdk_state.response_callback(controller_id, command, data + index, len - 3);
             } else {
@@ -709,6 +723,7 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
             }
 
             // Direct packet - call callback
+            vesc_process_can_frame_and_store_information(controller_id, packet_type, data, len);
             if (sdk_state.response_callback) {
                 sdk_state.response_callback(controller_id, packet_type, data, len);
             }
@@ -818,6 +833,31 @@ void vesc_process_can_frame(uint32_t id, uint8_t *data, uint8_t len) {
 #elif __linux__
     pthread_mutex_unlock(&sdk_state.mutex);
 #endif
+}
+
+/** Get the latest motor R/L response 
+ * This function returns the most recent motor resistance and inductance response.
+ * If the response is not valid, it returns an empty response structure.
+ * The response is valid if the motor R/L detection has been performed.
+ */
+vesc_motor_rl_response_t vesc_get_latest_motor_rl_response() {
+    if (!sdk_state.motor_rl_response.valid) {
+        return (vesc_motor_rl_response_t){0};
+    }
+    return sdk_state.motor_rl_response;
+}
+
+/**
+ * Get the latest flux linkage response
+ * This function returns the most recent flux linkage response.
+ * If the response is not valid, it returns an empty response structure.
+ * The response is valid if the flux linkage detection has been performed.
+ */
+vesc_flux_linkage_response_t vesc_get_latest_flux_linkage_response() {
+    if (!sdk_state.flux_linkage_response.valid) {
+        return (vesc_flux_linkage_response_t){0};
+    }
+    return sdk_state.flux_linkage_response;
 }
 
 // ============================================================================
@@ -1026,7 +1066,6 @@ void vesc_detect_motor_r_l(uint8_t controller_id) {
         }
     }
 
-    // Use vesc_send_command to handle CRC and stop byte
     vesc_send_command(controller_id, buffer, 1);
 }
 
@@ -1054,7 +1093,6 @@ void vesc_detect_motor_param(uint8_t controller_id, float current, float min_rpm
         }
     }
 
-    // Use vesc_send_command to handle CRC and stop byte
     vesc_send_command(controller_id, buffer, index);
 }
 
@@ -1083,7 +1121,6 @@ void vesc_detect_motor_flux_linkage(uint8_t controller_id, float current, float 
         }
     }
 
-    // Use vesc_send_command to handle CRC and stop byte
     vesc_send_command(controller_id, buffer, index);
 }
 
@@ -1643,7 +1680,11 @@ void vesc_debug_print_stats(void) {
     time_t uptime = now - debug_state.start_time;
     
     printf("\n=== VESC Debug Statistics ===\n");
+#ifdef ZEPHYR
     printf("Uptime: %lld seconds\n", uptime);
+#else
+    printf("Uptime: %ld seconds\n", uptime);
+#endif
     printf("CAN Transmissions: %u\n", debug_state.stats.can_tx_count);
     printf("CAN Receptions: %u\n", debug_state.stats.can_rx_count);
     printf("Commands Sent: %u\n", debug_state.stats.command_count);

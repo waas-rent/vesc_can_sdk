@@ -381,6 +381,21 @@ uint8_t vesc_get_sender_controller_id(void);
  */
 void vesc_process_can_frame(uint32_t id, uint8_t *data, uint8_t len);
 
+/**
+ * This function returns the most recent motor R/L response.
+ * If the response is not valid, it returns an empty response structure.
+ * The response is valid if the motor R/L detection has been performed.
+ */
+vesc_motor_rl_response_t vesc_get_latest_motor_rl_response();
+
+/**
+ * This function returns the most recent motor parameter response.
+ * If the response is not valid, it returns an empty response structure.
+ * The response is valid if the motor parameter detection has been performed.
+ */
+vesc_flux_linkage_response_t vesc_get_latest_flux_linkage_response();
+
+
 // ============================================================================
 // Motor Control Functions
 // ============================================================================
