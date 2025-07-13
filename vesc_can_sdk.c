@@ -833,7 +833,7 @@ void vesc_set_duty(uint8_t controller_id, float duty) {
     if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
         const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
         vesc_debug_output("[%s] Command: VESC#%d SET_DUTY %.3f (%.1f%%)\n", 
-                         timestamp, controller_id, duty, duty * 100.0f);
+                         timestamp, controller_id, (double)duty, (double)(duty * 100.0f));
         
         if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
             vesc_debug_hex_dump("  Command Data: ", buffer, index);
@@ -858,7 +858,7 @@ void vesc_set_current(uint8_t controller_id, float current) {
     if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
         const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
         vesc_debug_output("[%s] Command: VESC#%d SET_CURRENT %.2fA\n", 
-                         timestamp, controller_id, current);
+                         timestamp, controller_id, (double)current);
         
         if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
             vesc_debug_hex_dump("  Command Data: ", buffer, index);
@@ -883,7 +883,7 @@ void vesc_set_current_brake(uint8_t controller_id, float current) {
     if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
         const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
         vesc_debug_output("[%s] Command: VESC#%d SET_CURRENT_BRAKE %.2fA\n", 
-                         timestamp, controller_id, current);
+                         timestamp, controller_id, (double)current);
         
         if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
             vesc_debug_hex_dump("  Command Data: ", buffer, index);
@@ -908,7 +908,7 @@ void vesc_set_rpm(uint8_t controller_id, float rpm) {
     if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
         const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
         vesc_debug_output("[%s] Command: VESC#%d SET_RPM %.0f RPM\n", 
-                         timestamp, controller_id, rpm);
+                         timestamp, controller_id, (double)rpm);
         
         if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
             vesc_debug_hex_dump("  Command Data: ", buffer, index);
@@ -933,7 +933,7 @@ void vesc_set_handbrake(uint8_t controller_id, float current) {
     if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
         const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
         vesc_debug_output("[%s] Command: VESC#%d SET_HANDBRAKE %.2fA\n", 
-                         timestamp, controller_id, current);
+                         timestamp, controller_id, (double)current);
         
         if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
             vesc_debug_hex_dump("  Command Data: ", buffer, index);
@@ -1042,7 +1042,7 @@ void vesc_detect_motor_param(uint8_t controller_id, float current, float min_rpm
     if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
         const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
         vesc_debug_output("[%s] Command: VESC#%d DETECT_MOTOR_PARAM (current=%.2fA, min_rpm=%.0f, low_duty=%.3f)\n", 
-                         timestamp, controller_id, current, min_rpm, low_duty);
+                         timestamp, controller_id, (double)current, (double)min_rpm, (double)low_duty);
         
         if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
             vesc_debug_hex_dump("  Command Data: ", buffer, index);
@@ -1071,7 +1071,7 @@ void vesc_detect_motor_flux_linkage(uint8_t controller_id, float current, float 
     if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
         const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
         vesc_debug_output("[%s] Command: VESC#%d DETECT_MOTOR_FLUX_LINKAGE (current=%.2fA, min_rpm=%.0f, duty=%.3f, resistance=%.6fΩ)\n", 
-                         timestamp, controller_id, current, min_rpm, duty, resistance);
+                         timestamp, controller_id, (double)current, (double)min_rpm, (double)duty, (double)resistance);
         
         if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
             vesc_debug_hex_dump("  Command Data: ", buffer, index);
@@ -1643,7 +1643,7 @@ void vesc_debug_print_stats(void) {
     time_t uptime = now - debug_state.start_time;
     
     printf("\n=== VESC Debug Statistics ===\n");
-    printf("Uptime: %ld seconds\n", uptime);
+    printf("Uptime: %lld seconds\n", uptime);
     printf("CAN Transmissions: %u\n", debug_state.stats.can_tx_count);
     printf("CAN Receptions: %u\n", debug_state.stats.can_rx_count);
     printf("Commands Sent: %u\n", debug_state.stats.command_count);
