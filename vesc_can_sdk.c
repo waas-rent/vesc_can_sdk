@@ -352,15 +352,10 @@ static void vesc_send_buffer(uint8_t controller_id, uint8_t *data, uint32_t len)
 
 static void vesc_process_can_frame_and_store_information(uint32_t controller_id, uint8_t command, uint8_t *data, uint8_t len) {
     (void)controller_id;
-    // Results for motor_r_l and flux_linkage detection should be stored internally
     if (command == COMM_DETECT_MOTOR_R_L) {
-        printf("Processing motor R/L response for controller %d", controller_id);
         vesc_parse_motor_rl_response(data, len, &sdk_state.motor_rl_response);
     } else if (command == COMM_DETECT_MOTOR_FLUX_LINKAGE) {
-        printf("Processing flux linkage response for controller %d", controller_id);
         vesc_parse_flux_linkage_response(data, len, &sdk_state.flux_linkage_response);
-    } else {
-        printf("WARN: Received unexpected command %d for controller %d", command, controller_id);
     } 
 }
 
