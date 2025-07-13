@@ -354,9 +354,13 @@ static void vesc_process_can_frame_and_store_information(uint32_t controller_id,
     (void)controller_id;
     // Results for motor_r_l and flux_linkage detection should be stored internally
     if (command == COMM_DETECT_MOTOR_R_L) {
+        LOG_INFO("Processing motor R/L response for controller %d", controller_id);
         vesc_parse_motor_rl_response(data, len, &sdk_state.motor_rl_response);
     } else if (command == COMM_DETECT_MOTOR_FLUX_LINKAGE) {
+        LOG_INFO("Processing flux linkage response for controller %d", controller_id);
         vesc_parse_flux_linkage_response(data, len, &sdk_state.flux_linkage_response);
+    } else {
+        LOG_WARNING("Received unexpected command %d for controller %d", command, controller_id);
     } 
 }
 
@@ -581,10 +585,6 @@ static void vesc_process_can_frame_internal(uint32_t id, uint8_t *data, uint8_t 
                     return;
                 }
 
-                // Note: buffer is an array, so it can't be NULL
-                // The defensive check is not needed for arrays
-                
-                // Add debug output for CRC calculation
                 if (vesc_debug_category_enabled(VESC_DEBUG_BUFFERS)) {
                     const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
                     vesc_debug_output("[%s] PROCESS_RX_BUFFER: VESC#%d calculating CRC for length=%d\n", 
