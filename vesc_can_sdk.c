@@ -360,7 +360,7 @@ static void vesc_process_can_frame_and_store_information(uint32_t controller_id,
         printf("Processing flux linkage response for controller %d", controller_id);
         vesc_parse_flux_linkage_response(data, len, &sdk_state.flux_linkage_response);
     } else {
-        LOG_WARNING("Received unexpected command %d for controller %d", command, controller_id);
+        printf("WARN: Received unexpected command %d for controller %d", command, controller_id);
     } 
 }
 
