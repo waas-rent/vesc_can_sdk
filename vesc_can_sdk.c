@@ -1680,7 +1680,7 @@ void vesc_debug_print_stats(void) {
     time_t uptime = now - debug_state.start_time;
     
     printf("\n=== VESC Debug Statistics ===\n");
-#ifdef ZEPHYR
+#ifdef __ZEPHYR__
     printf("Uptime: %lld seconds\n", uptime);
 #else
     printf("Uptime: %ld seconds\n", uptime);
