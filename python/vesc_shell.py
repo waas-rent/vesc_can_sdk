@@ -56,7 +56,7 @@ try:
     from vesc_can_sdk import (
         vesc_lib, VescValues, VescMotorRLResponse, VescFwVersion, VescAdcValues, 
         VescPpmValues, VescChuckValues, VescChuckData, VescMotorParamResponse, 
-        VescFluxLinkageResponse, VescStatusMsg1, VescStatusMsg2, VescStatusMsg3, 
+        VescFluxLinkageResponse, VescFluxLinkageOpenloopResponse, VescStatusMsg1, VescStatusMsg2, VescStatusMsg3, 
         VescStatusMsg4, VescStatusMsg5, VescStatusMsg6, VescPongResponse, 
         VescDebugConfig, VescDebugStats, VESC_DEBUG_NONE, VESC_DEBUG_BASIC, 
         VESC_DEBUG_DETAILED, VESC_DEBUG_VERBOSE, VESC_DEBUG_CAN, VESC_DEBUG_COMMANDS, 
@@ -110,6 +110,7 @@ class VescShell(cmd.Cmd):
         self.latest_chuck_values = None
         self.latest_motor_rl = None
         self.latest_flux_linkage = None
+        self.latest_flux_linkage_openloop = None
         self.latest_pong = None
         
         # Status message storage
@@ -395,6 +396,20 @@ class VescShell(cmd.Cmd):
                         'flux_linkage': flux_linkage.flux_linkage
                     }
             
+            elif command == 57: # DETECT_MOTOR_FLUX_LINKAGE_OPENLOOP
+                self.blocking_response_received.set()
+                self.blocking_response_data = data_array
+                self.blocking_response_command = command
+
+                flux_linkage_openloop = VescFluxLinkageOpenloopResponse()
+                if vesc_lib.vesc_parse_flux_linkage_openloop_response(data_array, length, ctypes.byref(flux_linkage_openloop)):
+                    self.latest_flux_linkage_openloop = {
+                        'flux_linkage': flux_linkage_openloop.flux_linkage,
+                        'enc_offset': flux_linkage_openloop.enc_offset,
+                        'enc_ratio': flux_linkage_openloop.enc_ratio,
+                        'enc_inverted': flux_linkage_openloop.enc_inverted
+                    }
+            
             elif command == 27:  # DETECT_ENCODER or STATUS_5
                 if length == 8:  # STATUS_5
                     try:
@@ -643,6 +658,7 @@ class VescShell(cmd.Cmd):
             print("  setchuck        - Set chuck (nunchuk) data")
             print("  motor_rl        - Detect motor resistance and inductance")
             print("  flux_linkage    - Detect motor flux linkage [current] [min_rpm] [duty]")
+            print("  flux_openloop   - Detect motor flux linkage in open loop [current] [erpm_per_sec] [duty]")
             print("  fw_version      - Get firmware version")
             print("  reboot          - Reboot the VESC controller")
             print("  ping            - Send PING to VESC and wait for PONG response")
@@ -993,6 +1009,153 @@ class VescShell(cmd.Cmd):
         print("    flux_linkage 3.0 500            - 3A current, 500 RPM, default duty")
         print("    flux_linkage 3.0 500 0.05       - 3A current, 500 RPM, 5% duty")
         print("  Note: Lower current and RPM values are safer but may take longer.")
+    
+    def help_flux_openloop(self):
+        """Help for flux_openloop command"""
+        print("flux_openloop - Detect motor flux linkage in open loop")
+        print("  Performs motor flux linkage detection in open loop mode (takes up to 20 seconds).")
+        print("  WARNING: This command will turn the motor!")
+        print("  Requires motor R/L values to be available (run 'motor_rl' first).")
+        print("  Waits up to 20 seconds for response.")
+        print("  Usage: flux_openloop [current] [erpm_per_sec] [duty]")
+        print("  Parameters:")
+        print("    current      - Detection current in Amperes (default: 5.0A, range: 1-20A)")
+        print("    erpm_per_sec - Minimum erpm per second for detection (default: 1000, range: 100-5000)")
+        print("    duty         - Duty cycle for detection (default: 0.1 = 10%, range: 0.05-0.3)")
+        print("  Examples:")
+        print("    flux_openloop                    - Use default values")
+        print("    flux_openloop 3.0                - 3A current, default erpm/duty")
+        print("    flux_openloop 3.0 500            - 3A current, 500 erpm/sec, default duty")
+        print("    flux_openloop 3.0 500 0.05       - 3A current, 500 erpm/sec, 5% duty")
+        print("  Note: Lower current and erpm values are safer but may take longer.")
+        print("  This method uses open loop control and may be more suitable for some motors.")
+    
+    def do_flux_openloop(self, arg):
+        """Detect motor flux linkage in open loop"""
+        # Parse arguments
+        args = shlex.split(arg) if arg else []
+
+        # Set default values
+        current = 5.0  # 5A detection current
+        erpm_per_sec = 1000.0  # 1000 erpm per second minimum
+        duty = 0.1  # 10% duty cycle
+
+        # Parse provided arguments
+        if len(args) > 0:
+            try:
+                current = float(args[0])
+                if current <= 0:
+                    print("Error: Current must be positive")
+                    return
+                if current > 20:
+                    print("Warning: Current > 20A may be dangerous. Continue anyway? (yes/no): ", end="")
+                    try:
+                        if input().strip().lower() not in ['yes', 'y']:
+                            print("Flux linkage openloop detection cancelled.")
+                            return
+                    except KeyboardInterrupt:
+                        print("\nFlux linkage openloop detection cancelled.")
+                        return
+            except ValueError:
+                print("Error: Current must be a valid number")
+                return
+        
+        if len(args) > 1:
+            try:
+                erpm_per_sec = float(args[1])
+                if erpm_per_sec <= 0:
+                    print("Error: Erpm per second must be positive")
+                    return
+                if erpm_per_sec > 5000:
+                    print("Warning: Erpm per second > 5000 may be dangerous. Continue anyway? (yes/no): ", end="")
+                    try:
+                        if input().strip().lower() not in ['yes', 'y']:
+                            print("Flux linkage openloop detection cancelled.")
+                            return
+                    except KeyboardInterrupt:
+                        print("\nFlux linkage openloop detection cancelled.")
+                        return
+            except ValueError:
+                print("Error: Erpm per second must be a valid number")
+                return
+        
+        if len(args) > 2:
+            try:
+                duty = float(args[2])
+                if duty <= 0 or duty > 1:
+                    print("Error: Duty cycle must be between 0 and 1")
+                    return
+                if duty > 0.3:
+                    print("Warning: Duty cycle > 30% may be dangerous. Continue anyway? (yes/no): ", end="")
+                    try:
+                        if input().strip().lower() not in ['yes', 'y']:
+                            print("Flux linkage openloop detection cancelled.")
+                            return
+                    except KeyboardInterrupt:
+                        print("\nFlux linkage openloop detection cancelled.")
+                        return
+            except ValueError:
+                print("Error: Duty cycle must be a valid number")
+                return
+        
+        if len(args) > 3:
+            print("Error: Too many arguments")
+            print("Usage: flux_openloop [current] [erpm_per_sec] [duty]")
+            return
+        
+        # Check if motor R/L values are available
+        if not self.latest_motor_rl:
+            print("Error: Motor R/L values not available.")
+            print("Please run 'motor_rl' command first to detect motor resistance and inductance.")
+            return
+        
+        # Warn user about motor movement
+        print("WARNING: This command will turn the motor!")
+        print("Make sure the motor is free to rotate and not connected to any load.")
+        print("The motor will be driven with current to measure flux linkage in open loop mode.")
+        
+        # Show parameters that will be used
+        print(f"\nParameters to be used:")
+        print(f"  Current: {current:.1f}A")
+        print(f"  Erpm per second: {erpm_per_sec:.0f}")
+        print(f"  Duty Cycle: {duty*100:.1f}%")
+        print(f"  Motor Resistance: {self.latest_motor_rl['resistance']:.6f}Ω")
+        print(f"  Motor Inductance: {self.latest_motor_rl['inductance']:.8f}µH")
+        
+        # Ask for confirmation
+        try:
+            confirm = input("\nDo you want to continue? (yes/no): ").strip().lower()
+            if confirm not in ['yes', 'y']:
+                print("Flux linkage openloop detection cancelled.")
+                return
+        except KeyboardInterrupt:
+            print("\nFlux linkage openloop detection cancelled.")
+            return
+        
+        print("Detecting motor flux linkage in open loop (this may take up to 20 seconds)...")
+        
+        # Call the flux linkage openloop detection function with user-specified parameters
+        resistance = self.latest_motor_rl['resistance']
+        inductance = self.latest_motor_rl['inductance']
+        vesc_lib.vesc_detect_motor_flux_linkage_openloop(self.vesc_id, current, erpm_per_sec, duty, resistance, inductance)
+        
+        if self._wait_for_response(20.0, command_to_wait_for=57, is_blocking=True):
+            if self.latest_flux_linkage_openloop:
+                print(f"\nMotor Flux Linkage Openloop Detection Results:")
+                print(f"  Flux Linkage: {self.latest_flux_linkage_openloop['flux_linkage']:.8f} Wb")
+                print(f"  Encoder Offset: {self.latest_flux_linkage_openloop['enc_offset']:.6f}")
+                print(f"  Encoder Ratio: {self.latest_flux_linkage_openloop['enc_ratio']:.6f}")
+                print(f"  Encoder Inverted: {self.latest_flux_linkage_openloop['enc_inverted']}")
+                print(f"  Parameters used:")
+                print(f"    Current: {current:.1f}A")
+                print(f"    Erpm per second: {erpm_per_sec:.0f}")
+                print(f"    Duty Cycle: {duty*100:.1f}%")
+                print(f"    Motor Resistance: {resistance:.6f}Ω")
+                print(f"    Motor Inductance: {inductance:.8f}µH")
+            else:
+                print("Failed to parse flux linkage openloop values")
+        else:
+            print("Failed to get flux linkage openloop values")
     
     def do_flux_linkage(self, arg):
         """Detect motor flux linkage"""

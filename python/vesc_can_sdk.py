@@ -49,7 +49,8 @@ COMM_GET_STATUS_4 = 16
 COMM_PING = 17
 COMM_PONG = 18
 COMM_DETECT_MOTOR_R_L = 25
-COMM_DETECT_MOTOR_FLUX_LINKAGE = 27
+COMM_DETECT_MOTOR_FLUX_LINKAGE = 26
+COMM_DETECT_MOTOR_FLUX_LINKAGE_OPENLOOP = 57
 COMM_GET_STATUS_5 = 27  # Same as FLUX_LINKAGE
 COMM_REBOOT = 29
 COMM_GET_DECODED_ADC = 30
@@ -153,6 +154,15 @@ class VescMotorParamResponse(ctypes.Structure):
 class VescFluxLinkageResponse(ctypes.Structure):
     _fields_ = [
         ("flux_linkage", c_float),
+        ("valid", c_bool)
+    ]
+
+class VescFluxLinkageOpenloopResponse(ctypes.Structure):
+    _fields_ = [
+        ("flux_linkage", c_float),
+        ("enc_offset", c_float),
+        ("enc_ratio", c_float),
+        ("enc_inverted", c_uint8),
         ("valid", c_bool)
     ]
 
@@ -273,6 +283,10 @@ def setup_function_signatures():
     vesc_lib.vesc_detect_motor_flux_linkage.argtypes = [c_uint8, c_float, c_float, c_float, c_float]
     vesc_lib.vesc_detect_motor_flux_linkage.restype = None
     
+    # Flux linkage openloop detection
+    vesc_lib.vesc_detect_motor_flux_linkage_openloop.argtypes = [c_uint8, c_float, c_float, c_float, c_float, c_float]
+    vesc_lib.vesc_detect_motor_flux_linkage_openloop.restype = None
+    
     # Parsing functions
     vesc_lib.vesc_parse_get_values.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescValues)]
     vesc_lib.vesc_parse_get_values.restype = c_bool
@@ -297,6 +311,9 @@ def setup_function_signatures():
     
     vesc_lib.vesc_parse_flux_linkage_response.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescFluxLinkageResponse)]
     vesc_lib.vesc_parse_flux_linkage_response.restype = c_bool
+    
+    vesc_lib.vesc_parse_flux_linkage_openloop_response.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescFluxLinkageOpenloopResponse)]
+    vesc_lib.vesc_parse_flux_linkage_openloop_response.restype = c_bool
     
     # Status message parsing functions
     vesc_lib.vesc_parse_status_msg_1.argtypes = [ctypes.POINTER(c_uint8), c_uint8, ctypes.POINTER(VescStatusMsg1)]
@@ -352,8 +369,10 @@ def get_command_name(command_id: int) -> str:
         17: "PING",
         18: "PONG",
         25: "DETECT_MOTOR_R_L",
-        27: "STATUS_5/FLUX_LINKAGE",  # Conflict: both STATUS_5 and DETECT_MOTOR_FLUX_LINKAGE use ID 27
+        26: "DETECT_MOTOR_FLUX_LINKAGE",
+        27: "STATUS_5",  # STATUS_5 uses ID 27
         29: "REBOOT",
+        57: "DETECT_MOTOR_FLUX_LINKAGE_OPENLOOP",
         30: "GET_DECODED_ADC",
         31: "GET_DECODED_PPM",
         33: "GET_DECODED_CHUK",
