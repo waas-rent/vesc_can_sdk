@@ -33,7 +33,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#else
+#elif __linux__
 #include <pthread.h>
 #endif
 
@@ -60,7 +60,7 @@ typedef struct {
     bool initialized;
 #ifdef _WIN32
     CRITICAL_SECTION mutex;
-#else
+#elif __linux__
     pthread_mutex_t mutex;
 #endif
 } vesc_sdk_state_t;
@@ -761,7 +761,7 @@ bool vesc_can_init(vesc_can_send_func_t can_send_func, uint8_t receiver_controll
     
 #ifdef _WIN32
     InitializeCriticalSection(&sdk_state.mutex);
-#else
+#elif __linux__
     pthread_mutex_init(&sdk_state.mutex, NULL);
 #endif
     
@@ -805,7 +805,7 @@ void vesc_process_can_frame(uint32_t id, uint8_t *data, uint8_t len) {
     
 #ifdef _WIN32
     EnterCriticalSection(&sdk_state.mutex);
-#else
+#elif __linux__
     pthread_mutex_lock(&sdk_state.mutex);
 #endif
     
@@ -815,7 +815,7 @@ void vesc_process_can_frame(uint32_t id, uint8_t *data, uint8_t len) {
     
 #ifdef _WIN32
     LeaveCriticalSection(&sdk_state.mutex);
-#else
+#elif __linux__
     pthread_mutex_unlock(&sdk_state.mutex);
 #endif
 }
