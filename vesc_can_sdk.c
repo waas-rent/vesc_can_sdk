@@ -59,6 +59,7 @@ typedef struct {
     uint8_t sender_id;               // Sender controller ID (used in buffer protocol first byte)
     vesc_motor_rl_response_t motor_rl_response; // Internal storage for motor R/L detection response
     vesc_flux_linkage_response_t flux_linkage_response; // Internal storage for flux linkage detection response
+    vesc_flux_linkage_openloop_response_t flux_linkage_openloop_response; // Internal storage for flux linkage openloop detection response
     bool initialized;
 #ifdef _WIN32
     CRITICAL_SECTION mutex;
@@ -356,7 +357,9 @@ static void vesc_process_can_frame_and_store_information(uint32_t controller_id,
         vesc_parse_motor_rl_response(data, len, &sdk_state.motor_rl_response);
     } else if (command == COMM_DETECT_MOTOR_FLUX_LINKAGE) {
         vesc_parse_flux_linkage_response(data, len, &sdk_state.flux_linkage_response);
-    } 
+    } else if (command == COMM_DETECT_MOTOR_FLUX_LINKAGE_OPENLOOP) {
+        vesc_parse_flux_linkage_openloop_response(data, len, &sdk_state.flux_linkage_openloop_response);
+    }
 }
 
 /**
@@ -855,6 +858,19 @@ vesc_flux_linkage_response_t vesc_get_latest_flux_linkage_response() {
     return sdk_state.flux_linkage_response;
 }
 
+/**
+ * Get the latest flux linkage openloop response
+ * This function returns the most recent flux linkage openloop response.
+ * If the response is not valid, it returns an empty response structure.
+ * The response is valid if the flux linkage openloop detection has been performed.
+ */
+vesc_flux_linkage_openloop_response_t vesc_get_latest_flux_linkage_openloop_response() {
+    if (!sdk_state.flux_linkage_openloop_response.valid) {
+        return (vesc_flux_linkage_openloop_response_t){0};
+    }
+    return sdk_state.flux_linkage_openloop_response;
+}
+
 // ============================================================================
 // Motor Control Functions (using VESC packet protocol)
 // ============================================================================
@@ -1119,6 +1135,35 @@ void vesc_detect_motor_flux_linkage(uint8_t controller_id, float current, float 
     vesc_send_command(controller_id, buffer, index);
 }
 
+void vesc_detect_motor_flux_linkage_openloop(uint8_t controller_id, float current, float erpm_per_sec, float duty, float resistance, float inductance) {
+    uint8_t buffer[21];
+    int32_t index = 0;
+    buffer[index++] = COMM_DETECT_MOTOR_FLUX_LINKAGE_OPENLOOP;
+    vesc_buffer_append_float32(buffer, current, 1e3f, &index);
+    vesc_buffer_append_float32(buffer, erpm_per_sec, 1e3f, &index);
+    vesc_buffer_append_float32(buffer, duty, 1e3f, &index);
+    vesc_buffer_append_float32(buffer, resistance, 1e6f, &index);
+    vesc_buffer_append_float32(buffer, inductance, 1e8f, &index);
+
+    // Debug output for command
+    if (vesc_debug_category_enabled(VESC_DEBUG_COMMANDS)) {
+        const char *timestamp = debug_state.config.enable_timestamps ? vesc_debug_get_timestamp() : "";
+        vesc_debug_output("[%s] Command: VESC#%d DETECT_MOTOR_FLUX_LINKAGE_OPENLOOP (current=%.2fA, erpm_per_sec=%.0f, duty=%.3f, resistance=%.6fΩ, inductance=%.8fH)\n", 
+                         timestamp, controller_id, (double)current, (double)erpm_per_sec, (double)duty, (double)resistance, (double)inductance);
+        
+        if (debug_state.config.level >= VESC_DEBUG_DETAILED) {
+            vesc_debug_hex_dump("  Command Data: ", buffer, index);
+        }
+        
+        // Update statistics
+        if (debug_state.config.enable_statistics) {
+            debug_state.stats.command_count++;
+        }
+    }
+
+    vesc_send_command(controller_id, buffer, index);
+}
+
 // ============================================================================
 // Configuration Functions
 // ============================================================================
@@ -1331,7 +1376,7 @@ void vesc_set_chuck_data(uint8_t controller_id, const vesc_chuck_data_t *chuck_d
 
 bool vesc_parse_get_values(uint8_t *data, uint8_t len, vesc_values_t *values) {
     if (!data || !values || len < 32) {
-        printf("vesc_parse_get_values: data is NULL or values is NULL or len is less than 32\n");
+        // TODO: Implement filtered values
         return false;
     }
     
@@ -1404,6 +1449,21 @@ bool vesc_parse_flux_linkage_response(uint8_t *data, uint8_t len, vesc_flux_link
     
     int32_t index = 1;
     response->flux_linkage = vesc_buffer_get_float32(data, 1e7f, &index);
+    response->valid = true;
+    
+    return true;
+}
+
+bool vesc_parse_flux_linkage_openloop_response(uint8_t *data, uint8_t len, vesc_flux_linkage_openloop_response_t *response) {
+    if (!data || !response || len < 13) {
+        return false;
+    }
+    
+    int32_t index = 1;
+    response->flux_linkage = vesc_buffer_get_float32(data, 1e7f, &index);
+    response->enc_offset = vesc_buffer_get_float32(data, 1e6f, &index);
+    response->enc_ratio = vesc_buffer_get_float32(data, 1e6f, &index);
+    response->enc_inverted = data[index++];
     response->valid = true;
     
     return true;

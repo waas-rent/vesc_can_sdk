@@ -91,6 +91,7 @@ typedef struct {
 #define COMM_DETECT_MOTOR_R_L      25
 #define COMM_DETECT_MOTOR_PARAM    24
 #define COMM_DETECT_MOTOR_FLUX_LINKAGE 26
+#define COMM_DETECT_MOTOR_FLUX_LINKAGE_OPENLOOP 57
 #define COMM_GET_DECODED_ADC       32
 #define COMM_GET_DECODED_PPM       31
 #define COMM_GET_DECODED_CHUK      33
@@ -218,6 +219,14 @@ typedef struct {
     float flux_linkage;       // Flux linkage (Wb)
     bool valid;               // Response validity
 } vesc_flux_linkage_response_t;
+
+typedef struct {
+    float flux_linkage;       // Flux linkage (Wb)
+    float enc_offset;         // Encoder offset
+    float enc_ratio;          // Encoder ratio
+    uint8_t enc_inverted;     // Encoder inverted flag
+    bool valid;               // Response validity
+} vesc_flux_linkage_openloop_response_t;
 
 typedef struct {
     float adc1;               // ADC1 value (0.0-1.0)
@@ -395,6 +404,13 @@ vesc_motor_rl_response_t vesc_get_latest_motor_rl_response();
  */
 vesc_flux_linkage_response_t vesc_get_latest_flux_linkage_response();
 
+/**
+ * This function returns the most recent flux linkage openloop response.
+ * If the response is not valid, it returns an empty response structure.
+ * The response is valid if the flux linkage openloop detection has been performed.
+ */
+vesc_flux_linkage_openloop_response_t vesc_get_latest_flux_linkage_openloop_response();
+
 
 // ============================================================================
 // Motor Control Functions
@@ -471,6 +487,18 @@ void vesc_detect_motor_param(uint8_t controller_id, float current, float min_rpm
  * @param resistance Motor resistance in Ohms
  */
 void vesc_detect_motor_flux_linkage(uint8_t controller_id, float current, float min_rpm, float duty, float resistance);
+
+/**
+ * Detect motor flux linkage in open loop
+ * 
+ * @param controller_id VESC controller ID (0-255)
+ * @param current Detection current in Amperes
+ * @param min_erpm_per_sec Minimum erpm per second for detection
+ * @param duty Duty cycle for detection
+ * @param resistance Motor resistance in Ohms
+ * @param inductance Motor inductance in microhenryH
+ */
+void vesc_detect_motor_flux_linkage_openloop(uint8_t controller_id, float current, float min_erpm_per_sec, float duty, float resistance, float inductance);
 
 // ============================================================================
 // Configuration Functions
@@ -595,6 +623,16 @@ bool vesc_parse_motor_param_response(uint8_t *data, uint8_t len, vesc_motor_para
  * @return true on success, false on failure
  */
 bool vesc_parse_flux_linkage_response(uint8_t *data, uint8_t len, vesc_flux_linkage_response_t *response);
+
+/**
+ * Parse flux linkage detection open loop response
+ * 
+ * @param data Response data
+ * @param len Data length
+ * @param response Pointer to response structure
+ * @return true on success, false on failure
+ */
+bool vesc_parse_flux_linkage_openloop_response(uint8_t *data, uint8_t len, vesc_flux_linkage_openloop_response_t *response);
 
 /**
  * Parse ADC values response
